@@ -1,13 +1,15 @@
 #pragma once
-#include <memory>
-#include <nxemu-core/modules/system_modules.h>
-#include <nxemu-module-spec/base.h>
-#include <sciter_ui.h>
-#include <sciter_handler.h>
-#include <sciter_element.h>
-#include <widgets/menubar.h>
+#include "applets/web_browser.h"
 #include "startup_checks.h"
 #include "user_interface/widgets/rom_browser.h"
+#include <memory>
+#include <string>
+#include <nxemu-core/modules/system_modules.h>
+#include <nxemu-module-spec/base.h>
+#include <sciter_element.h>
+#include <sciter_handler.h>
+#include <sciter_ui.h>
+#include <widgets/menubar.h>
 
 #ifdef _WIN32
 struct Win32FullscreenState;
@@ -23,7 +25,6 @@ class SciterMainWindow :
     public IKeySink,
     public IResizeSink,
     public IClickSink,
-    public IMouseUpDownSink,
     public IStateChangeSink,
     public ITimerSink,
     public IEventSink
@@ -37,12 +38,24 @@ class SciterMainWindow :
         StopEmulation,
         OpenControllersDialog,
         OpenSystemConfiguration,
+        InstallFirmware,
         ToggleFullscreen,
+        ToggleStartGamesInFullscreen,
+        ToggleHideUi,
+        ToggleDockedMode,
         ResetWindowSize720p,
         ResetWindowSize900p,
         ResetWindowSize1080p,
         RecentFileMenuFirst,
         RecentFileMenuLast = RecentFileMenuFirst + 20,
+    };
+
+    enum class Panel
+    {
+        RomBrowser,
+        Loading,
+        Pause,
+        Renderer
     };
 
     enum
@@ -79,8 +92,7 @@ private:
     static void DisplayedFramesChanged(const char * setting, void * userData);
     static void DiskCacheLoadChanged(const char * setting, void * userData);
     static void HotKeysChanged(const char * setting, void * userData);
-    void UpdateStatusbar();
-    void DismissvolumePopup(SCITER_ELEMENT source, int32_t x, int32_t y);
+    void UpdateStatusWidgets();
     void UpdateInputDrivers();
     void PreventOSSleep();
     void AllowOSSleep();
@@ -91,26 +103,30 @@ private:
     void OnPauseContinueGame();
     void OnSystemConfig();
     void OnInputConfig();
+    void OnInstallFirmware();
     void OnRecetGame(uint32_t fileIndex);
-    void UpdateStatusBar();
+    void OnToggleDockedMode();
+    void OnToggleStartGamesInFullscreen();
+    void UpdateEmulationStatusText();
     const MenuBarAccelerator * HotkeyAccelerator(const char * name);
     const char * IsMenuBarAccelerator(uint32_t keyCode, uint32_t keyboardState);
     GuiAction HotkeyToGuiAction(const char * hotkeyId);
     void OnGuiAction(GuiAction action);
+
+    void ToggleHideUi();
+    void UpdateUIVisibility();
 
 #ifdef _WIN32
     void ToggleFullscreen();
     void EnterFullscreen();
     void ExitFullscreen();
     void ResetWindowSize(uint32_t nominal_width, uint32_t nominal_height);
-    void ResetWindowSize720();
-    void ResetWindowSize900();
-    void ResetWindowSize1080();
 #endif
     void LayoutRenderWindow();
-    void UpdatePausePanel();
-    void ApplyEmulationLoadingUi();
+    void UpdateLoadingScreenDetails();
+    void ShowPanel(Panel panel);
     void RefreshDiskCacheLoadingText();
+    void RegisterApplets();
 
     // IWindowDestroySink
     void OnWindowDestroy(HWINDOW hWnd) override;
@@ -128,10 +144,6 @@ private:
 
     // IClickSink
     bool OnClick(SCITER_ELEMENT element, SCITER_ELEMENT source, uint32_t reason) override;
-
-    // IMouseUpDownSink
-    bool OnMouseUp(SCITER_ELEMENT element, SCITER_ELEMENT source, uint32_t x, uint32_t y) override;
-    bool OnMouseDown(SCITER_ELEMENT element, SCITER_ELEMENT source, uint32_t x, uint32_t y) override;
 
     // IStateChangeSink
     bool OnStateChange(SCITER_ELEMENT elem, uint32_t eventReason, void* data) override;
@@ -155,13 +167,17 @@ private:
     std::string m_windowTitle;
     std::unique_ptr<SystemConfig> m_systemConfig;
     std::unique_ptr<InputConfig> m_inputConfig;
+    WebBrowserApplet m_WebBrowser;
     float m_resolutionUpFactor;
-    bool m_volumePopup;
     bool m_useMultiCore;
     bool m_useSpeedLimit;
     uint32_t m_speedLimit;
     bool m_emulationRunning;
-#ifdef _WIN32
+    bool m_pendingStartInFullscreen;
+    std::string m_fullscreenMenuSvg;
+    bool m_hideUi;
+    uint64_t m_lastDiskCacheStatusPostMs;
+    int m_lastPostedDiskCacheStage;
+    bool m_shownFirstFrame;
     std::unique_ptr<Win32FullscreenState> m_win32Fullscreen;
-#endif
 };

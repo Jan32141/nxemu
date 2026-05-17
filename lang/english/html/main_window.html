@@ -19,13 +19,19 @@
     </div>
     <div id="LoadingPanel" class="main-contents-panel">
       <div class="loading-container">
-        <div class="loading-text"><span id="LoadingStatusText" class="text">Loading</span>
-      	  <div class="dot-pulse-container">
-            <div class="dot-pulse"></div>
-            <div class="dot-pulse"></div>
-            <div class="dot-pulse"></div>
-      	  </div>
-      	</div>
+        <img id="LoadingCornerLogo" />
+        <div class="loading-main">
+          <img id="LoadingGameIcon" alt="" />
+          <div class="loading-text-column">
+            <div id="loadingText" />
+            <div class="loading-progress-wrap">
+              <div class="loading-progress-track">
+                <div id="LoadingProgressFill" class="loading-progress-fill indeterminate"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <img id="LoadingCornerBanner" />
       </div>
     </div>
     <div id="PausePanel" class="main-contents-panel">
@@ -34,7 +40,15 @@
       </div>
     </div>
   </div>
-  <div id="StatusBar" ><span id="renderer" /><span id="volume" /><div id="StatusText" /></div>
+  <div id="StatusBar" >
+    <span id="dockedMode" />
+    <span id="renderer" />
+    <span id="volumeAnchor">
+      <span id="volume" />
+      <span id="volumePopupBtn"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><path d="M104.704 685.248a64 64 0 0 0 90.496 0l316.8-316.8 316.8 316.8a64 64 0 0 0 90.496-90.496L557.248 232.704a64 64 0 0 0-90.496 0L104.704 594.752a64 64 0 0 0 0 90.496"/></svg></span>
+    </span>
+    <div id="StatusText" /> 
+  </div>
 </html>
 <popup id="VolumePopup">
     <div>

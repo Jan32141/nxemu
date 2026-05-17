@@ -3,10 +3,13 @@
 #include "settings/system_config.h"
 #include "settings/ui_settings.h"
 #include "user_interface/key_mappings.h"
+#include <common/base64.h>
 #include <common/std_string.h>
+#include <nxemu-core/notification.h>
 #include <nxemu-core/settings/identifiers.h>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-core/version.h>
+#include <nxemu-module-spec/operating_system.h>
 #include <nxemu-module-spec/system_loader.h>
 #include <nxemu-module-spec/video.h>
 #include <nxemu-os/os_settings_identifiers.h>
@@ -14,11 +17,15 @@
 #include <nxemu/settings/ui_identifiers.h>
 #include <sciter_element.h>
 #include <widgets/menubar.h>
+#include <yuzu_common/fs/filesystem_interfaces.h>
 #include <yuzu_common/settings.h>
 #include <yuzu_common/settings_input.h>
 
 #include <Windows.h>
+#include <array>
 #include <cmath>
+#include <string>
+#include <vector>
 
 struct Win32FullscreenState
 {
@@ -60,7 +67,6 @@ bool AcceleratorMatchesKey(const MenuBarAccelerator & accel, uint32_t keyCode, u
     return ctrl == accel.ctrl && alt == accel.alt && shift == accel.shift;
 }
 
-/** Matches Layout::EmulationAspectRatio (yuzu_video_core) for window-size reset; inlined to avoid a link dep. */
 static float EmulationAspectRatioForWindowReset(float window_aspect_ratio)
 {
     using Settings::AspectRatio;
@@ -82,6 +88,163 @@ static float EmulationAspectRatioForWindowReset(float window_aspect_ratio)
     }
 }
 
+void LoadImageToElement(SciterElement elem, const std::vector<uint8_t> & data)
+{
+    if (!elem.IsValid())
+    {
+        return;
+    }
+    if (!data.empty())
+    {
+        const char * mime = "image/png";
+        if (data.size() >= 2 && data[0] == 0xff && data[1] == 0xd8)
+        {
+            mime = "image/jpeg";
+        }
+        else if (data.size() >= 4 && data[0] == 'G' && data[1] == 'I' && data[2] == 'F')
+        {
+            mime = "image/gif";
+        }
+        const std::string uri = stdstr_f("data:%s;base64,%s", mime, base64_encode(data.data(), data.size()).c_str());
+        elem.SetAttribute("src", uri.c_str());
+    }
+    elem.SetStyleAttribute("display", data.empty() ? "none" : "block");
+}
+
+std::string GetInstalledFirmwareDisplayVersion(ISystemloader & loader)
+{
+    constexpr uint64_t FirmwareVersionSystemDataId = 0x0100000000000809ULL;
+
+    IFileSysRegisteredCache & nand = loader.FileSystemController().GetSystemNANDContents();
+    FileSysNCAPtr nca = nand.GetEntry(FirmwareVersionSystemDataId, LoaderContentRecordType::Data);
+    if (!nca)
+    {
+        return {};
+    }
+
+    IVirtualFilePtr romfs_file(nca->GetRomFS());
+    if (!romfs_file)
+    {
+        return {};
+    }
+
+    IVirtualDirectoryPtr romfs = romfs_file->ExtractRomFS();
+    if (!romfs)
+    {
+        return {};
+    }
+
+    IVirtualFilePtr version_file(romfs->GetFile("file"));
+    if (!version_file)
+    {
+        return {};
+    }
+
+    struct FirmwareVersionFormatRaw
+    {
+        uint8_t major;
+        uint8_t minor;
+        uint8_t micro;
+        uint8_t pad0;
+        uint8_t revision_major;
+        uint8_t revision_minor;
+        uint8_t pad1[2];
+        char platform[0x20];
+        uint8_t version_hash[0x40];
+        char display_version[0x18];
+        char display_title[0x80];
+    };
+    static_assert(sizeof(FirmwareVersionFormatRaw) == 0x100);
+
+    FirmwareVersionFormatRaw firmware{};
+    const uint64_t bytes_read = version_file->ReadBytes(reinterpret_cast<uint8_t *>(&firmware), sizeof(firmware), 0);
+    if (bytes_read != sizeof(firmware))
+    {
+        return {};
+    }
+
+    const auto end = std::find(std::begin(firmware.display_version), std::end(firmware.display_version), '\0');
+    return std::string(firmware.display_version, end);
+}
+
+void UpdateLoadingProgressBar(SciterElement & fillEl, bool indeterminate, int widthPercent, bool shaderBuilding)
+{
+    if (!fillEl.IsValid())
+    {
+        return;
+    }
+    if (indeterminate)
+    {
+        fillEl.AddClassName("indeterminate");
+        fillEl.RemoveClassName("building");
+        fillEl.SetStyleAttribute("width", "42%");
+    }
+    else
+    {
+        fillEl.RemoveClassName("indeterminate");
+        if (shaderBuilding)
+        {
+            fillEl.AddClassName("building");
+        }
+        else
+        {
+            fillEl.RemoveClassName("building");
+        }
+        const int w = (std::max)(0, (std::min)(100, widthPercent));
+        fillEl.SetStyleAttribute("width", stdstr_f("%d%%", w).c_str());
+    }
+}
+
+std::string HtmlEscapeForHtmlContent(const std::string & s)
+{
+    std::string out;
+    out.reserve(s.size());
+    for (const char c : s)
+    {
+        switch (c)
+        {
+        case '&':
+            out += "&amp;";
+            break;
+        case '<':
+            out += "&lt;";
+            break;
+        case '>':
+            out += "&gt;";
+            break;
+        case '"':
+            out += "&quot;";
+            break;
+        default:
+            out += c;
+            break;
+        }
+    }
+    return out;
+}
+
+std::string GetGameTitleLoadingHtml(ISystemloader & loader, const char * verb)
+{
+    IRomInfoPtr info(loader.LoadedRomInfo());
+    if (!info)
+    {
+        return stdstr_f("<span class=\"loading-verb\">%s</span> <span class=\"loading-game-name\">...</span>", verb);
+    }
+    uint32_t sz = 0;
+    if (info->ReadTitle(nullptr, &sz) != LoaderResultStatus::Success || sz == 0)
+    {
+        return stdstr_f("<span class=\"loading-verb\">%s</span> <span class=\"loading-game-name\">...</span>", verb);
+    }
+    std::vector<char> buf(static_cast<size_t>(sz) + 1, 0);
+    if (info->ReadTitle(buf.data(), &sz) != LoaderResultStatus::Success)
+    {
+        return stdstr_f("<span class=\"loading-verb\">%s</span> <span class=\"loading-game-name\">...</span>", verb);
+    }
+    const std::string titleEsc = HtmlEscapeForHtmlContent(std::string(buf.data()));
+    return stdstr_f("<span class=\"loading-verb\">%s</span> <span class=\"loading-game-name\">%s</span>", verb,
+                    titleEsc.c_str());
+}
+
 } // namespace
 
 SciterMainWindow::SciterMainWindow(ISciterUI & sciterUI, const char * windowTitle) :
@@ -89,8 +252,12 @@ SciterMainWindow::SciterMainWindow(ISciterUI & sciterUI, const char * windowTitl
     m_window(nullptr),
     m_renderWindow(nullptr),
     m_windowTitle(windowTitle),
-    m_volumePopup(false),
     m_emulationRunning(false),
+    m_pendingStartInFullscreen(false),
+    m_hideUi(false),
+    m_lastDiskCacheStatusPostMs(0),
+    m_lastPostedDiskCacheStage(0),
+    m_shownFirstFrame(false),
     m_win32Fullscreen(std::make_unique<Win32FullscreenState>())
 {
     SettingsStore & settings = SettingsStore::GetInstance();
@@ -100,20 +267,30 @@ SciterMainWindow::SciterMainWindow(ISciterUI & sciterUI, const char * windowTitl
     settings.RegisterCallback(NXCoreSetting::GameName, SciterMainWindow::GameNameChanged, this);
     settings.RegisterCallback(NXCoreSetting::DisplayedFrames, SciterMainWindow::DisplayedFramesChanged, this);
     settings.RegisterCallback(NXCoreSetting::DiskCacheLoadTick, SciterMainWindow::DiskCacheLoadChanged, this);
+    settings.RegisterCallback(NXOsSetting::AudioMuted, SciterMainWindow::SettingChanged, this);
     settings.RegisterCallback(NXOsSetting::AudioVolume, SciterMainWindow::SettingChanged, this);
     settings.RegisterCallback(NXOsSetting::ResolutionUpFactor, SciterMainWindow::SettingChanged, this);
     settings.RegisterCallback(NXOsSetting::SpeedLimit, SciterMainWindow::SettingChanged, this);
     settings.RegisterCallback(NXOsSetting::UseMultiCore, SciterMainWindow::SettingChanged, this);
     settings.RegisterCallback(NXOsSetting::UseSpeedLimit, SciterMainWindow::SettingChanged, this);
+    settings.RegisterCallback(NXOsSetting::DockedMode, SciterMainWindow::SettingChanged, this);
     settings.RegisterCallback(NXUISetting::Hotkeys, SciterMainWindow::HotKeysChanged, this);
 
     m_useMultiCore = settings.GetBool(NXOsSetting::UseMultiCore);
     m_useSpeedLimit = settings.GetBool(NXOsSetting::UseSpeedLimit);
     m_speedLimit = settings.GetBool(NXOsSetting::SpeedLimit);
+
+    std::vector<uint8_t> resource;
+    if (m_sciterUI.LoadResource("fullscreen.svg", resource))
+    {
+        m_fullscreenMenuSvg.assign(reinterpret_cast<const char *>(resource.data()), resource.size());
+    }
 }
 
 SciterMainWindow::~SciterMainWindow()
 {
+    m_WebBrowser.DetachWindow();
+
     SettingsStore & settings = SettingsStore::GetInstance();
     settings.UnregisterCallback(NXCoreSetting::EmulationRunning, SciterMainWindow::EmulationRunning, this);
     settings.UnregisterCallback(NXCoreSetting::EmulationState, SciterMainWindow::EmulationStateChanged, this);
@@ -121,11 +298,13 @@ SciterMainWindow::~SciterMainWindow()
     settings.UnregisterCallback(NXCoreSetting::GameName, SciterMainWindow::GameNameChanged, this);
     settings.UnregisterCallback(NXCoreSetting::DisplayedFrames, SciterMainWindow::DisplayedFramesChanged, this);
     settings.UnregisterCallback(NXCoreSetting::DiskCacheLoadTick, SciterMainWindow::DiskCacheLoadChanged, this);
+    settings.UnregisterCallback(NXOsSetting::AudioMuted, SciterMainWindow::SettingChanged, this);
     settings.UnregisterCallback(NXOsSetting::AudioVolume, SciterMainWindow::SettingChanged, this);
     settings.UnregisterCallback(NXOsSetting::ResolutionUpFactor, SciterMainWindow::SettingChanged, this);
     settings.UnregisterCallback(NXOsSetting::SpeedLimit, SciterMainWindow::SettingChanged, this);
     settings.UnregisterCallback(NXOsSetting::UseMultiCore, SciterMainWindow::SettingChanged, this);
     settings.UnregisterCallback(NXOsSetting::UseSpeedLimit, SciterMainWindow::SettingChanged, this);
+    settings.UnregisterCallback(NXOsSetting::DockedMode, SciterMainWindow::SettingChanged, this);
     settings.UnregisterCallback(NXUISetting::Hotkeys, SciterMainWindow::HotKeysChanged, this);
 
     m_systemConfig.reset(nullptr);
@@ -137,6 +316,17 @@ SciterMainWindow::~SciterMainWindow()
         m_romBrowser->ClearItems();
     }
     m_modules.ShutDown();
+}
+
+void SciterMainWindow::RegisterApplets()
+{
+    if (!m_modules.IsValid())
+    {
+        return;
+    }
+    IOperatingSystem & os = m_modules.Modules().OperatingSystem();
+    m_WebBrowser.AttachToWindow(m_window->GetHandle());
+    os.SetFrontendApplets(nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, &m_WebBrowser);
 }
 
 void SciterMainWindow::ResetMenu()
@@ -177,12 +367,25 @@ void SciterMainWindow::ResetMenu()
             paused = m_modules.Modules().OperatingSystem().IsEmulationPaused();
         }
         systemMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::PauseOrContinueEmulation),paused ? "Continue" : "Pause",nullptr, HotkeyAccelerator(Hotkey::PauseContinue)));
-        systemMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::StopEmulation), "&Stop"));
+        systemMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::StopEmulation), "&Stop", nullptr, HotkeyAccelerator(Hotkey::StopEmulation)));
         mainTitleMenu.push_back(MenuBarItem(MenuBarItem::SUB_MENU, "&System", &systemMenu));
     }
 
     MenuBarItemList viewMenu;
-    viewMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::ToggleFullscreen),"&Fullscreen",nullptr,HotkeyAccelerator(Hotkey::Fullscreen)));
+    if (!m_emulationRunning)
+    {
+        viewMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::ToggleStartGamesInFullscreen), "&Start games in fullscreen", nullptr, nullptr, uiSettings.startGamesInFullscreen ? MenuBarItem::CheckState::Checked : MenuBarItem::CheckState::Unchecked));
+        viewMenu.push_back(MenuBarItem(MenuBarItem::SPLITER));
+    }
+    if (m_emulationRunning)
+    {
+        const std::string * fullscreenSvg = m_fullscreenMenuSvg.empty() ? nullptr : &m_fullscreenMenuSvg;
+        viewMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::ToggleFullscreen), "&Fullscreen", nullptr, HotkeyAccelerator(Hotkey::Fullscreen), MenuBarItem::CheckState::None, fullscreenSvg));
+    }
+    if (m_emulationRunning)
+    {
+        viewMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::ToggleHideUi), m_hideUi ? "Show &UI" : "Hide &UI", nullptr, HotkeyAccelerator(Hotkey::HideUi)));
+    }
     MenuBarItemList resetWindowSizeMenu;
     resetWindowSizeMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::ResetWindowSize720p),"Reset Window Size to 720p"));
     resetWindowSizeMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::ResetWindowSize900p),"Reset Window Size to 900p"));
@@ -191,8 +394,13 @@ void SciterMainWindow::ResetMenu()
     mainTitleMenu.push_back(MenuBarItem(MenuBarItem::SUB_MENU, "&View", &viewMenu));
 
     MenuBarItemList optionsMenu;
-    optionsMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::OpenControllersDialog), "&Controllers..."));
-    optionsMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::OpenSystemConfiguration), "Confi&gure..."));
+    optionsMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::OpenControllersDialog), "&Controllers...", nullptr, HotkeyAccelerator(Hotkey::Controllers)));
+    optionsMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::OpenSystemConfiguration), "Confi&gure...", nullptr, HotkeyAccelerator(Hotkey::Configure)));
+    if (!m_emulationRunning && m_modules.IsValid())
+    {
+        optionsMenu.push_back(MenuBarItem(MenuBarItem::SPLITER));
+        optionsMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::InstallFirmware), "Install &Firmware...", nullptr, nullptr));
+    }
     mainTitleMenu.push_back(MenuBarItem(MenuBarItem::SUB_MENU, "&Options", &optionsMenu));
 
     m_menuBar->AddSink(this);
@@ -236,21 +444,26 @@ bool SciterMainWindow::Show()
 
     CreateRenderWindow();
     m_modules.Setup(*this);
-    UpdateStatusbar();
+    RegisterApplets();
+    ResetMenu();
+    UpdateStatusWidgets();
+    UpdateEmulationStatusText();
 
-    m_sciterUI.AttachHandler(m_rootElement, IID_IMOUSEUPDOWNSINK, (IMouseUpDownSink *)this);
+    m_sciterUI.AttachHandler(m_rootElement.GetElementByID("dockedMode"), IID_ICLICKSINK, (IClickSink *)this);
     m_sciterUI.AttachHandler(m_rootElement.GetElementByID("renderer"), IID_ICLICKSINK, (IClickSink *)this);
     m_sciterUI.AttachHandler(m_rootElement.GetElementByID("volume"), IID_ICLICKSINK, (IClickSink *)this);
+    m_sciterUI.AttachHandler(m_rootElement.GetElementByID("volumePopupBtn"), IID_ICLICKSINK, (IClickSink *)this);
     m_sciterUI.AttachHandler(m_rootElement.GetElementByID("audioVolume"), IID_ISTATECHANGESINK, (IStateChangeSink *)this);
+    SciterElement volumePopup(m_rootElement.GetElementByID("VolumePopup"));
+    if (volumePopup.IsValid())
+    {
+        m_sciterUI.AttachHandler(volumePopup, IID_EVENTSINK, (IEventSink *)this);
+    }
 
     m_sciterUI.AttachHandler(m_rootElement, IID_ITIMERSINK, (ITimerSink *)this);
     m_rootElement.SetTimer(25, (uint32_t *)TIMER_UPDATE_INPUT);
 
-    SciterElement romBrowserPanel = m_rootElement.GetElementByID("RomBrowserPanel");
-    if (romBrowserPanel.IsValid())
-    {
-        romBrowserPanel.SetStyleAttribute("display", "block");
-    }
+    ShowPanel(Panel::RomBrowser);
 
     SciterElement rombrowser = m_rootElement.FindFirst("rombrowser");
     interfacePtr = rombrowser.IsValid() ? m_sciterUI.GetElementInterface(rombrowser, IID_ROMBROWSER) : nullptr;
@@ -278,14 +491,21 @@ void SciterMainWindow::ShowConfig(const char * startPage)
 void SciterMainWindow::LoadGame(const char * path)
 {
     m_modules.Setup(*this);
+    RegisterApplets();
 
     ISystemloader & loader = m_modules.Modules().Systemloader();
     loader.LoadRom(path);
 }
 
-void SciterMainWindow::UpdateStatusbar()
+void SciterMainWindow::UpdateStatusWidgets()
 {
     SettingsStore & settings = SettingsStore::GetInstance();
+    SciterElement dockedMode(m_rootElement.GetElementByID("dockedMode"));
+    if (dockedMode.IsValid())
+    {
+        stdstr_f text("%s", Settings::CanonicalizeEnum((Settings::DockedMode)settings.GetInt(NXOsSetting::DockedMode)).c_str());
+        dockedMode.SetHTML((const uint8_t *)text.c_str(), text.size());
+    }
     SciterElement renderer(m_rootElement.GetElementByID("renderer"));
     if (renderer.IsValid())
     {
@@ -296,29 +516,10 @@ void SciterMainWindow::UpdateStatusbar()
     SciterElement volume(m_rootElement.GetElementByID("volume"));
     if (volume.IsValid())
     {
-        stdstr_f text("VOLUME: %d %%", settings.GetInt(NXOsSetting::AudioVolume));
+        bool muted = settings.GetBool(NXOsSetting::AudioMuted);
+        stdstr_f text(muted ? "Vol: Mute" : "Vol: %d %%", settings.GetInt(NXOsSetting::AudioVolume));
         volume.SetHTML((const uint8_t *)text.c_str(), text.size());
     }
-}
-
-void SciterMainWindow::DismissvolumePopup(SCITER_ELEMENT source, int32_t x, int32_t y)
-{
-    if (!m_volumePopup)
-    {
-        return;
-    }
-    if (source == m_rootElement.GetElementByID("volume"))
-    {
-        return;
-    }
-    SciterElement volumePopup(m_rootElement.GetElementByID("VolumePopup"));
-    SciterElement::RECT rc = volumePopup.GetLocation(SciterElement::ROOT_RELATIVE | SciterElement::BORDER_BOX);
-    if (x >= rc.left && y >= rc.top && x <= rc.right && y <= rc.bottom)
-    {
-        return;
-    }
-    m_sciterUI.PopupHide(m_rootElement.GetElementByID("VolumePopup"));
-    m_volumePopup = false;
 }
 
 void SciterMainWindow::UpdateInputDrivers()
@@ -345,8 +546,6 @@ void SciterMainWindow::CreateRenderWindow()
         IVideo & video = m_modules.Modules().Video();
         video.UpdateFramebufferLayout(rect.right - rect.left, rect.bottom - rect.top);
     }
-
-    UpdatePausePanel();
 }
 
 void SciterMainWindow::SetCaption(const std::string & caption)
@@ -364,6 +563,15 @@ void SciterMainWindow::EmulationRunning(const char * /*setting*/, void * userDat
     SciterMainWindow * impl = (SciterMainWindow *)userData;
     SettingsStore & settings = SettingsStore::GetInstance();
     impl->m_emulationRunning = settings.GetBool(NXCoreSetting::EmulationRunning);
+    impl->m_pendingStartInFullscreen = impl->m_emulationRunning && uiSettings.startGamesInFullscreen;
+    if (!impl->m_emulationRunning && impl->m_win32Fullscreen && impl->m_win32Fullscreen->active)
+    {
+        impl->ExitFullscreen();
+    }
+    if (!impl->m_emulationRunning)
+    {
+        impl->m_hideUi = false;
+    }
     if (settings.GetBool(NXCoreSetting::ShuttingDown))
     {
         return;
@@ -383,20 +591,32 @@ void SciterMainWindow::EmulationRunning(const char * /*setting*/, void * userDat
         renderer.SetState(impl->m_emulationRunning ? SciterElement::STATE_DISABLED : 0, impl->m_emulationRunning ? 0 : SciterElement::STATE_DISABLED, true);
     }
     impl->ResetMenu();
+    impl->UpdateUIVisibility();
 }
 
-void SciterMainWindow::ApplyEmulationLoadingUi()
+void SciterMainWindow::ShowPanel(Panel panel)
 {
-    SciterElement romBrowserPanel(m_rootElement.GetElementByID("RomBrowserPanel"));
-    if (romBrowserPanel.IsValid())
+    struct PanelEntry
     {
-        romBrowserPanel.SetStyleAttribute("display", "none");
-    }
-    SciterElement loadingPanel(m_rootElement.GetElementByID("LoadingPanel"));
-    if (loadingPanel.IsValid())
+        Panel panel;
+        const char * id;
+    };
+    static const PanelEntry panels[] = {
+        {Panel::RomBrowser, "RomBrowserPanel"},
+        {Panel::Loading, "LoadingPanel"},
+        {Panel::Pause, "PausePanel"},
+    };
+
+    for (const PanelEntry & entry : panels)
     {
-        loadingPanel.SetStyleAttribute("display", "block");
+        SciterElement elem(m_rootElement.GetElementByID(entry.id));
+        if (!elem.IsValid())
+        {
+            continue;
+        }
+        elem.SetStyleAttribute("display", panel == entry.panel ? "block" : "none");
     }
+    ShowWindow((HWND)m_renderWindow, panel == Panel::Renderer ? SW_SHOW : SW_HIDE);
     m_sciterUI.UpdateWindow(m_rootElement.GetElementHwnd(true));
 }
 
@@ -405,24 +625,36 @@ void SciterMainWindow::EmulationStateChanged(const char * /*setting*/, void * us
     SciterMainWindow * impl = (SciterMainWindow *)userData;
     EmulationState state = (EmulationState)SettingsStore::GetInstance().GetInt(NXCoreSetting::EmulationState);
 
-    if (state == EmulationState::LoadingRom || state == EmulationState::Starting)
+    if (state == EmulationState::RomLoaded)
     {
-        impl->ApplyEmulationLoadingUi();
+        impl->UpdateLoadingScreenDetails();
+        impl->m_shownFirstFrame = false;
+        impl->ShowPanel(Panel::Loading);
     }
     else if (state == EmulationState::Running)
     {
+        if (impl->m_pendingStartInFullscreen && uiSettings.startGamesInFullscreen)
+        {
+            impl->m_pendingStartInFullscreen = false;
+            impl->EnterFullscreen();
+        }
         impl->m_rootElement.PostEvent(EVENT_EMULATION_RUNNING);
         impl->ResetMenu();
+        if (impl->m_shownFirstFrame)
+        {
+            impl->ShowPanel(Panel::Renderer);        
+        }
     }
     else if (state == EmulationState::Paused)
     {
         impl->ResetMenu();
+        impl->ShowPanel(Panel::Pause);
+        impl->UpdateEmulationStatusText();
     }
     else if (state == EmulationState::Stopped)
     {
         impl->m_rootElement.PostEvent(EVENT_EMULATION_STOPPED);
     }
-    impl->UpdatePausePanel();
 }
 
 void SciterMainWindow::GameFileChanged(const char * /*setting*/, void * userData)
@@ -471,13 +703,35 @@ void SciterMainWindow::GameNameChanged(const char * /*setting*/, void * userData
 
 void SciterMainWindow::DisplayedFramesChanged(const char * /*setting*/, void * userData)
 {
+    SettingsStore & settings = SettingsStore::GetInstance();
     SciterMainWindow * impl = (SciterMainWindow *)userData;
-    impl->m_rootElement.PostEvent(EVENT_EMULATION_FIRST_FRAME);
+
+    impl->m_shownFirstFrame = settings.GetBool(NXCoreSetting::DisplayedFrames);
+    if (impl->m_shownFirstFrame)
+    {
+        impl->m_rootElement.PostEvent(EVENT_EMULATION_FIRST_FRAME);
+    }
 }
 
 void SciterMainWindow::DiskCacheLoadChanged(const char * /*setting*/, void * userData)
 {
     SciterMainWindow * impl = static_cast<SciterMainWindow *>(userData);
+    SettingsStore & settings = SettingsStore::GetInstance();
+    const int stage = settings.GetInt(NXCoreSetting::DiskCacheLoadStage);
+
+    constexpr uint64_t intervalMs = 50;
+    const uint64_t now = GetTickCount64();
+    const bool neverPosted = (impl->m_lastDiskCacheStatusPostMs == 0);
+    const bool stageChanged = (stage != impl->m_lastPostedDiskCacheStage);
+    const uint64_t elapsed = neverPosted ? intervalMs : (now - impl->m_lastDiskCacheStatusPostMs);
+
+    if (!neverPosted && !stageChanged && elapsed < intervalMs)
+    {
+        return;
+    }
+
+    impl->m_lastPostedDiskCacheStage = stage;
+    impl->m_lastDiskCacheStatusPostMs = now;
     impl->m_rootElement.PostEvent(EVENT_DISK_CACHE_STATUS);
 }
 
@@ -488,26 +742,42 @@ void SciterMainWindow::RefreshDiskCacheLoadingText()
     const int current = settings.GetInt(NXCoreSetting::DiskCacheLoadCurrent);
     const int total = settings.GetInt(NXCoreSetting::DiskCacheLoadTotal);
 
+    SciterElement fillEl(m_rootElement.GetElementByID("LoadingProgressFill"));
+
     std::string text;
     switch (stage)
     {
     case 0:
-        text = "Loading...";
+        text = GetGameTitleLoadingHtml(m_modules.Modules().Systemloader(), "Loading");
+        UpdateLoadingProgressBar(fillEl, true, 0, false);
         break;
     case 1:
-        text = stdstr_f("Loading shaders %d / %d", current, total);
+        text = stdstr_f(
+            "<span class=\"loading-verb\">Loading shaders</span> <span class=\"loading-shader-count\">%d / %d</span>",
+            current, total);
+        if (total > 0)
+        {
+            const int pct = static_cast<int>((100.0 * static_cast<double>(current)) / static_cast<double>(total));
+            UpdateLoadingProgressBar(fillEl, false, pct, true);
+        }
+        else
+        {
+            UpdateLoadingProgressBar(fillEl, true, 0, false);
+        }
         break;
     case 2:
-        text = "Launching...";
+        text = GetGameTitleLoadingHtml(m_modules.Modules().Systemloader(), "Launching");
+        UpdateLoadingProgressBar(fillEl, false, 100, false);
         break;
     default:
+        UpdateLoadingProgressBar(fillEl, true, 0, false);
         return;
     }
 
-    SciterElement status(m_rootElement.GetElementByID("LoadingStatusText"));
+    SciterElement status(m_rootElement.GetElementByID("loadingText"));
     if (status.IsValid())
     {
-        status.SetText(text.c_str());
+        status.SetHTML(reinterpret_cast<const uint8_t *>(text.c_str()), text.size());
     }
     m_sciterUI.UpdateWindow(m_rootElement.GetElementHwnd(true));
 }
@@ -541,9 +811,60 @@ void SciterMainWindow::OnOpenFile()
     if (m_modules.IsValid())
     {
         m_modules.Setup(*this);
+        RegisterApplets();
 
         ISystemloader & loader = m_modules.Modules().Systemloader();
         loader.SelectAndLoad((void *)m_window->GetHandle());
+    }
+}
+
+void SciterMainWindow::OnInstallFirmware()
+{
+    if (m_window == nullptr || m_emulationRunning || !m_modules.IsValid())
+    {
+        return;
+    }
+
+    Path folder;
+    folder.BrowseForDirectory((void *)m_window->GetHandle(), "Select folder containing firmware .dnca files");
+    if (!folder.DirectoryExists())
+    {
+        return;
+    }
+
+    ISystemloader & loader = m_modules.Modules().Systemloader();
+    const FirmwareInstallResult result = loader.InstallFirmwareFromFolder(folder);
+
+    switch (result)
+    {
+    case FirmwareInstallResult::Success:
+        g_notify->DisplayError("Firmware installed successfully.", "Firmware installed");
+        UpdateStatusWidgets();
+        break;
+    case FirmwareInstallResult::InvalidArgument:
+        g_notify->DisplayError("Invalid folder path.", "Firmware install failed");
+        break;
+    case FirmwareInstallResult::SourceNotDirectory:
+        g_notify->DisplayError("The selected path is not a directory.", "Firmware install failed");
+        break;
+    case FirmwareInstallResult::NoNCAsFound:
+        g_notify->DisplayError("No .dnca files found in that folder. ", "Firmware install failed");
+        break;
+    case FirmwareInstallResult::SystemNandUnavailable:
+        g_notify->DisplayError("System NAND is not available. Ensure the NAND data directory exists and the emulator initialized successfully.", "Firmware install failed");
+        break;
+    case FirmwareInstallResult::NotWritable:
+        g_notify->DisplayError("System NAND content is not writable.", "Firmware install failed");
+        break;
+    case FirmwareInstallResult::FailedClearRegistered:
+        g_notify->DisplayError("Could not clear the registered firmware folder before copying new files.", "Firmware install failed");
+        break;
+    case FirmwareInstallResult::FailedCopy:
+        g_notify->DisplayError("Copying one or more firmware files failed. See the log for details.", "Firmware install failed");
+        break;
+    default:
+        g_notify->DisplayError("Unknown error.", "Firmware install failed");
+        break;
     }
 }
 
@@ -594,17 +915,11 @@ void SciterMainWindow::OnInputConfig()
     m_inputConfig->Display((void *)m_window->GetHandle());
 }
 
-void SciterMainWindow::UpdateStatusBar()
+void SciterMainWindow::UpdateEmulationStatusText()
 {
     SciterElement statusTextEl(m_rootElement.GetElementByID("StatusText"));
     if (!statusTextEl.IsValid())
     {
-        return;
-    }
-    if (!m_emulationRunning)
-    {
-        m_rootElement.SetTimer(0, (uint32_t *)TIMER_UPDATE_STATUS);
-        statusTextEl.SetText("");
         return;
     }
 
@@ -612,55 +927,66 @@ void SciterMainWindow::UpdateStatusBar()
     {
         return;
     }
+
     IOperatingSystem & operatingSystem = m_modules.Modules().OperatingSystem();
     IVideo & video = m_modules.Modules().Video();
-    std::string status;
+    ISystemloader & loader = m_modules.Modules().Systemloader();
+    std::vector<std::string> parts;
 
-    if (operatingSystem.IsEmulationPaused())
+    if (m_emulationRunning)
     {
-        status += "Paused";
-    }
-
-    const int shaders_building = video.ShadersBuilding();
-
-    if (shaders_building > 0)
-    {
-        if (!status.empty())
+        if (operatingSystem.IsEmulationPaused())
         {
-            status += " | ";
+            parts.push_back("Paused");
         }
-        status += stdstr_f("Building: %d shader(s)", shaders_building);
-    }
 
-    PerfStatsResults results = operatingSystem.GetAndResetPerfStats();
+        const int shaders_building = video.ShadersBuilding();
 
-    if (!status.empty())
-    {
-        status += " | ";
-    }
-    status += stdstr_f("Scale: %.0fx", m_resolutionUpFactor);
-    if (!m_useMultiCore)
-    {
-        status += " | ";
-        if (m_useSpeedLimit)
+        if (shaders_building > 0)
         {
-            if (results.emulation_speed > 0.999 && results.emulation_speed < 1.01)
+            parts.push_back(stdstr_f("Building: %d shader(s)", shaders_building));
+        }
+
+        if (m_resolutionUpFactor != 1.0)
+        {
+            parts.push_back(stdstr_f("Scale: %.0fx", m_resolutionUpFactor));
+        }
+        PerfStatsResults results = operatingSystem.GetAndResetPerfStats();
+        if (!m_useMultiCore)
+        {
+            if (m_useSpeedLimit)
             {
-                results.emulation_speed = 100.0;
+                if (results.emulation_speed > 0.999 && results.emulation_speed < 1.01)
+                {
+                    results.emulation_speed = 100.0;
+                }
+                parts.push_back(stdstr_f("Speed: %.0f / %d", results.emulation_speed * 100.0, m_speedLimit));
             }
-            status += stdstr_f("Speed: %.0f / %d", results.emulation_speed * 100.0, m_speedLimit);
+            else
+            {
+                parts.push_back(stdstr_f("Speed: %f", results.emulation_speed * 100.0));
+            }
         }
-        else
+        if (results.average_game_fps != 0)
         {
-            status += stdstr_f("Speed: %f", results.emulation_speed * 100.0);
+            parts.push_back(stdstr_f("%.0f FPS (%.2f ms)%s", std::round(results.average_game_fps), std::isnan(results.frametime) ? 0.0 : (results.frametime * 1000.0), m_useSpeedLimit ? "" : " Unlocked"));
         }
     }
-    if (!status.empty())
+    else
     {
-        status += " | ";
+        m_rootElement.SetTimer(0, (uint32_t *)TIMER_UPDATE_STATUS);    
     }
-    status += stdstr_f("Game: %.0f FPS%s", std::round(results.average_game_fps), m_useSpeedLimit ? "" : " (Unlocked)");
-    status += stdstr_f(" | Frame: %.2f ms", std::isnan(results.frametime) ? 0.0 : (results.frametime * 1000.0));
+    const std::string firmware_version = GetInstalledFirmwareDisplayVersion(loader);
+    if (!firmware_version.empty())
+    {
+        parts.push_back("Firmware: " + firmware_version);
+    }
+    std::string status;
+    for (size_t i = 0; i < parts.size(); i++)
+    {
+        if (i > 0) status += " | ";
+        status += parts[i];
+    }
     statusTextEl.SetText(status.c_str());
 }
 
@@ -704,7 +1030,45 @@ SciterMainWindow::GuiAction SciterMainWindow::HotkeyToGuiAction(const char * hot
     {
         return GuiAction::PauseOrContinueEmulation;
     }
+    if (strcmp(hotkeyId, Hotkey::ToggleDockedMode) == 0)
+    {
+        return GuiAction::ToggleDockedMode;
+    }
+    if (strcmp(hotkeyId, Hotkey::StopEmulation) == 0)
+    {
+        return GuiAction::StopEmulation;
+    }
+    if (strcmp(hotkeyId, Hotkey::Configure) == 0)
+    {
+        return GuiAction::OpenSystemConfiguration;
+    }
+    if (strcmp(hotkeyId, Hotkey::Controllers) == 0)
+    {
+        return GuiAction::OpenControllersDialog;
+    }
+    if (strcmp(hotkeyId, Hotkey::HideUi) == 0)
+    {
+        return GuiAction::ToggleHideUi;
+    }
     return GuiAction::Invalid;
+}
+
+void SciterMainWindow::OnToggleDockedMode()
+{
+    SettingsStore & store = SettingsStore::GetInstance();
+    const bool docked = store.GetInt(NXOsSetting::DockedMode) == static_cast<int32_t>(Settings::DockedMode::Docked);
+    store.SetInt(NXOsSetting::DockedMode, static_cast<int32_t>(docked ? Settings::DockedMode::Handheld : Settings::DockedMode::Docked));
+}
+
+void SciterMainWindow::OnToggleStartGamesInFullscreen()
+{
+    if (m_emulationRunning)
+    {
+        return;
+    }
+    uiSettings.startGamesInFullscreen = !uiSettings.startGamesInFullscreen;
+    SaveUISetting();
+    ResetMenu();
 }
 
 void SciterMainWindow::OnRecetGame(uint32_t fileIndex)
@@ -718,6 +1082,7 @@ void SciterMainWindow::OnRecetGame(uint32_t fileIndex)
 
 void SciterMainWindow::OnWindowDestroy(HWINDOW /*hWnd*/)
 {
+    m_WebBrowser.DetachWindow();
     m_sciterUI.Stop();
 }
 
@@ -739,6 +1104,9 @@ void SciterMainWindow::OnGuiAction(GuiAction action)
     case GuiAction::LoadFile:
         OnOpenFile();
         break;
+    case GuiAction::InstallFirmware:
+        OnInstallFirmware();
+        break;
     case GuiAction::ExitApplication:
         OnFileExit();
         break;
@@ -756,6 +1124,15 @@ void SciterMainWindow::OnGuiAction(GuiAction action)
         break;
     case GuiAction::ToggleFullscreen:
         ToggleFullscreen();
+        break;
+    case GuiAction::ToggleStartGamesInFullscreen:
+        OnToggleStartGamesInFullscreen();
+        break;
+    case GuiAction::ToggleHideUi:
+        ToggleHideUi();
+        break;
+    case GuiAction::ToggleDockedMode:
+        OnToggleDockedMode();
         break;
     case GuiAction::ResetWindowSize720p:
         ResetWindowSize(1280U, 720U);
@@ -795,8 +1172,18 @@ bool SciterMainWindow::OnKeyDown(SCITER_ELEMENT /*element*/, SCITER_ELEMENT /*it
         }
         if (strcmp(hotkeyId, Hotkey::Fullscreen) == 0)
         {
+            const bool allowFullscreen = m_emulationRunning || (m_win32Fullscreen != nullptr && m_win32Fullscreen->active);
+            if (allowFullscreen)
+            {
+                m_win32Fullscreen->pendingSwallowKeyUp = (uint32_t)keyCode;
+                OnGuiAction(GuiAction::ToggleFullscreen);
+                return true;
+            }
+        }
+        if (strcmp(hotkeyId, Hotkey::HideUi) == 0)
+        {
             m_win32Fullscreen->pendingSwallowKeyUp = (uint32_t)keyCode;
-            OnGuiAction(GuiAction::ToggleFullscreen);
+            OnGuiAction(GuiAction::ToggleHideUi);
             return true;
         }
         const GuiAction fromKey = HotkeyToGuiAction(hotkeyId);
@@ -820,14 +1207,11 @@ bool SciterMainWindow::OnKeyDown(SCITER_ELEMENT /*element*/, SCITER_ELEMENT /*it
 
 bool SciterMainWindow::OnKeyUp(SCITER_ELEMENT /*element*/, SCITER_ELEMENT /*item*/, SciterKeys keyCode, uint32_t keyboardState)
 {
-#ifdef _WIN32
-    if (m_win32Fullscreen != nullptr && m_win32Fullscreen->pendingSwallowKeyUp != 0 &&
-        (uint32_t)keyCode == m_win32Fullscreen->pendingSwallowKeyUp)
+    if (m_win32Fullscreen != nullptr && m_win32Fullscreen->pendingSwallowKeyUp != 0 && (uint32_t)keyCode == m_win32Fullscreen->pendingSwallowKeyUp)
     {
         m_win32Fullscreen->pendingSwallowKeyUp = 0;
         return true;
     }
-#endif
     if (IsMenuBarAccelerator((uint32_t)keyCode, keyboardState) != nullptr)
     {
         return true;
@@ -879,37 +1263,95 @@ void SciterMainWindow::LayoutRenderWindow()
         IVideo & video = m_modules.Modules().Video();
         video.UpdateFramebufferLayout(width, height);
     }
-    UpdatePausePanel();
 }
 
-void SciterMainWindow::UpdatePausePanel()
+void SciterMainWindow::UpdateLoadingScreenDetails()
 {
-    SciterElement panel(m_rootElement.GetElementByID("PausePanel"));
-    if (!panel.IsValid())
+    IRomInfoPtr info(m_modules.Modules().Systemloader().LoadedRomInfo());
+    if (!info)
     {
         return;
     }
 
-    const bool paused =
-        m_emulationRunning && m_modules.IsValid() && m_modules.Modules().OperatingSystem().IsEmulationPaused();
+    std::vector<uint8_t> logoData, bannerData, iconData;
+    uint32_t sz = 0;
+    if (info->ReadLogo(nullptr, &sz) == LoaderResultStatus::Success && sz > 0)
+    {
+        logoData.resize(sz);
+        if (info->ReadLogo(logoData.data(), &sz) != LoaderResultStatus::Success)
+        {
+            logoData.clear();
+        }
+    }
 
-    panel.SetStyleAttribute("display", paused ? "block" : "none");
+    sz = 0;
+    if (info->ReadBanner(nullptr, &sz) == LoaderResultStatus::Success && sz > 0)
+    {
+        bannerData.resize(sz);
+        if (info->ReadBanner(bannerData.data(), &sz) != LoaderResultStatus::Success)
+        {
+            bannerData.clear();
+        }
+    }
 
-    if (m_renderWindow == nullptr || !m_emulationRunning)
+    sz = 0;
+    if (info->ReadIcon(nullptr, &sz) == LoaderResultStatus::Success && sz > 0)
+    {
+        iconData.resize(sz);
+        if (info->ReadIcon(iconData.data(), &sz) != LoaderResultStatus::Success)
+        {
+            iconData.clear();
+        }
+    }
+
+    LoadImageToElement(m_rootElement.GetElementByID("LoadingCornerLogo"), logoData);
+    LoadImageToElement(m_rootElement.GetElementByID("LoadingCornerBanner"), bannerData);
+    LoadImageToElement(m_rootElement.GetElementByID("LoadingGameIcon"), iconData);
+}
+
+void SciterMainWindow::UpdateUIVisibility()
+{
+    const bool hide = m_hideUi || (m_win32Fullscreen != nullptr && m_win32Fullscreen->active);
+
+    std::array<SciterElement, 3> shellPanels = {{
+        m_rootElement.FindFirst("header"),
+        m_rootElement.GetElementByID("MainMenu"),
+        m_rootElement.GetElementByID("StatusBar"),
+    }};
+
+    for (SciterElement & panel : shellPanels)
+    {
+        if (!panel.IsValid())
+        {
+            continue;
+        }
+        if (hide)
+        {
+            panel.AddClassName("nx-fullscreen-hide");
+        }
+        else
+        {
+            panel.RemoveClassName("nx-fullscreen-hide");
+        }
+    }
+}
+
+void SciterMainWindow::ToggleHideUi()
+{
+    if (!m_emulationRunning)
     {
         return;
     }
-
-    if (paused)
+    m_hideUi = !m_hideUi;
+    UpdateUIVisibility();
+    m_sciterUI.UpdateWindow(m_rootElement.GetElementHwnd(true));
+    SciterElement mainContents(m_rootElement.GetElementByID("MainContents"));
+    if (mainContents.IsValid())
     {
-        ShowWindow((HWND)m_renderWindow, SW_HIDE);
+        mainContents.Update(true);
     }
-    else
-    {
-        SettingsStore & settings = SettingsStore::GetInstance();
-        const bool showRender = settings.GetBool(NXCoreSetting::DisplayedFrames);
-        ShowWindow((HWND)m_renderWindow, showRender ? SW_SHOW : SW_HIDE);
-    }
+    LayoutRenderWindow();
+    ResetMenu();
 }
 
 void SciterMainWindow::ToggleFullscreen()
@@ -922,7 +1364,7 @@ void SciterMainWindow::ToggleFullscreen()
     {
         ExitFullscreen();
     }
-    else
+    else if (m_emulationRunning)
     {
         EnterFullscreen();
     }
@@ -930,7 +1372,7 @@ void SciterMainWindow::ToggleFullscreen()
 
 void SciterMainWindow::EnterFullscreen()
 {
-    if (m_window == nullptr || !m_win32Fullscreen || m_win32Fullscreen->active)
+    if (m_window == nullptr || !m_win32Fullscreen || m_win32Fullscreen->active || !m_emulationRunning)
     {
         return;
     }
@@ -960,23 +1402,8 @@ void SciterMainWindow::EnterFullscreen()
 
     SetWindowPos(hwnd, HWND_TOP, mi.rcMonitor.left, mi.rcMonitor.top, w, h, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
 
-    SciterElement hdr(m_rootElement.FindFirst("header"));
-    if (hdr.IsValid())
-    {
-        hdr.AddClassName("nx-fullscreen-hide");
-    }
-    SciterElement mm(m_rootElement.GetElementByID("MainMenu"));
-    if (mm.IsValid())
-    {
-        mm.AddClassName("nx-fullscreen-hide");
-    }
-    SciterElement sb(m_rootElement.GetElementByID("StatusBar"));
-    if (sb.IsValid())
-    {
-        sb.AddClassName("nx-fullscreen-hide");
-    }
-
     fs.active = true;
+    UpdateUIVisibility();
     m_sciterUI.UpdateWindow(m_rootElement.GetElementHwnd(true));
     SciterElement mainContents(m_rootElement.GetElementByID("MainContents"));
     if (mainContents.IsValid())
@@ -995,27 +1422,12 @@ void SciterMainWindow::ExitFullscreen()
     HWND hwnd = (HWND)m_window->GetHandle();
     Win32FullscreenState & fs = *m_win32Fullscreen;
 
-    SciterElement hdr(m_rootElement.FindFirst("header"));
-    if (hdr.IsValid())
-    {
-        hdr.RemoveClassName("nx-fullscreen-hide");
-    }
-    SciterElement mm(m_rootElement.GetElementByID("MainMenu"));
-    if (mm.IsValid())
-    {
-        mm.RemoveClassName("nx-fullscreen-hide");
-    }
-    SciterElement statusEl(m_rootElement.GetElementByID("StatusBar"));
-    if (statusEl.IsValid())
-    {
-        statusEl.RemoveClassName("nx-fullscreen-hide");
-    }
-
     SetWindowLongPtr(hwnd, GWL_STYLE, fs.savedStyle);
     SetWindowLongPtr(hwnd, GWL_EXSTYLE, fs.savedExStyle);
     SetWindowPlacement(hwnd, &fs.placement);
 
     fs.active = false;
+    UpdateUIVisibility();
     m_sciterUI.UpdateWindow(m_rootElement.GetElementHwnd(true));
     SciterElement mainContents(m_rootElement.GetElementByID("MainContents"));
     if (mainContents.IsValid())
@@ -1076,10 +1488,14 @@ void SciterMainWindow::ResetWindowSize(uint32_t nominal_width, uint32_t nominal_
     LayoutRenderWindow();
 }
 
-bool SciterMainWindow::OnClick(SCITER_ELEMENT /*element*/, SCITER_ELEMENT source, uint32_t /*reason*/)
+bool SciterMainWindow::OnClick(SCITER_ELEMENT element, SCITER_ELEMENT source, uint32_t /*reason*/)
 {
     SciterElement rootElement(m_window->GetRootElement());
-    if (source == rootElement.GetElementByID("renderer"))
+    if (source == rootElement.GetElementByID("dockedMode"))
+    {
+        OnToggleDockedMode();
+    }
+    else if (element == rootElement.GetElementByID("renderer"))
     {
         SettingsStore & settings = SettingsStore::GetInstance();
         Settings::RendererBackend graphicsAPI = (Settings::RendererBackend)settings.GetInt(NXVideoSetting::GraphicsAPI);
@@ -1101,22 +1517,28 @@ bool SciterMainWindow::OnClick(SCITER_ELEMENT /*element*/, SCITER_ELEMENT source
     }
     else if (source == rootElement.GetElementByID("volume"))
     {
-        m_sciterUI.PopupShow(rootElement.GetElementByID("VolumePopup"), rootElement.GetElementByID("volume"), 8);
-        m_volumePopup = true;
+        SettingsStore & settings = SettingsStore::GetInstance();
+        settings.SetBool(NXOsSetting::AudioMuted, !settings.GetBool(NXOsSetting::AudioMuted));
+    }
+    else if (element == rootElement.GetElementByID("volumePopupBtn"))
+    {
+        SciterElement volumePopup(rootElement.GetElementByID("VolumePopup"));
+        if (volumePopup.IsValid())
+        {
+            const bool popupOpen = (volumePopup.GetState() & SciterElement::STATE_POPUP) != 0;
+            if (!popupOpen)
+            {
+                m_sciterUI.PopupShow(rootElement.GetElementByID("VolumePopup"), rootElement.GetElementByID("volumeAnchor"), 8);
+                SciterElement(rootElement.GetElementByID("volumePopupBtn")).AddClassName("open");
+            }
+            else
+            {
+                m_sciterUI.PopupHide(m_rootElement.GetElementByID("VolumePopup"));
+                SciterElement(rootElement.GetElementByID("volumePopupBtn")).RemoveClassName("open");
+            }        
+        }
     }
     return true;
-}
-
-bool SciterMainWindow::OnMouseUp(SCITER_ELEMENT /*element*/, SCITER_ELEMENT source, uint32_t x, uint32_t y)
-{
-    DismissvolumePopup(source, x, y);
-    return false;
-}
-
-bool SciterMainWindow::OnMouseDown(SCITER_ELEMENT /*element*/, SCITER_ELEMENT source, uint32_t x, uint32_t y)
-{
-    DismissvolumePopup(source, x, y);
-    return false;
 }
 
 bool SciterMainWindow::OnStateChange(SCITER_ELEMENT elem, uint32_t /*eventReason*/, void * /*data*/)
@@ -1128,6 +1550,7 @@ bool SciterMainWindow::OnStateChange(SCITER_ELEMENT elem, uint32_t /*eventReason
         if (value.isInt())
         {
             SettingsStore & settings = SettingsStore::GetInstance();
+            settings.SetBool(NXOsSetting::AudioMuted, false);
             settings.SetInt(NXOsSetting::AudioVolume, value.GetValueInt());
             if (m_modules.IsValid())
             {
@@ -1141,9 +1564,9 @@ bool SciterMainWindow::OnStateChange(SCITER_ELEMENT elem, uint32_t /*eventReason
 void SciterMainWindow::SettingChanged(const char * setting, void * userData)
 {
     SciterMainWindow * impl = (SciterMainWindow *)userData;
-    if (strcmp(setting, NXOsSetting::AudioVolume) == 0)
+    if (strcmp(setting, NXOsSetting::AudioMuted) == 0 || strcmp(setting, NXOsSetting::AudioVolume) == 0)
     {
-        impl->UpdateStatusbar();
+        impl->UpdateStatusWidgets();
     }
     else if (strcmp(setting, NXOsSetting::ResolutionUpFactor) == 0)
     {
@@ -1160,6 +1583,11 @@ void SciterMainWindow::SettingChanged(const char * setting, void * userData)
     else if (strcmp(setting, NXOsSetting::SpeedLimit) == 0)
     {
         impl->m_speedLimit = SettingsStore::GetInstance().GetInt(NXOsSetting::SpeedLimit);
+    }
+    else if (strcmp(setting, NXOsSetting::DockedMode) == 0)
+    {
+        impl->UpdateStatusWidgets();
+        impl->LayoutRenderWindow();
     }
 }
 
@@ -1181,16 +1609,37 @@ bool SciterMainWindow::OnTimer(SCITER_ELEMENT /*element*/, uint32_t * timerId)
     }
     else if (timerId == (uint32_t *)TIMER_UPDATE_STATUS)
     {
-        UpdateStatusBar();
+        UpdateEmulationStatusText();
     }
     return true;
 }
 
-bool SciterMainWindow::OnEvent(SCITER_ELEMENT /*element*/, SCITER_ELEMENT /*source*/, uint32_t event_code, uint64_t /*reason*/)
+bool SciterMainWindow::OnEvent(SCITER_ELEMENT element, SCITER_ELEMENT /*source*/, uint32_t event_code, uint64_t /*reason*/)
 {
+    if (event_code == static_cast<uint32_t>(SciterBehaviorEvent::PopupDismissed) && m_window != nullptr)
+    {
+        SciterElement rootElement(m_window->GetRootElement());
+        const SciterElement volumePopupRoot = rootElement.GetElementByID("VolumePopup");
+        if (rootElement.IsValid() && volumePopupRoot.IsValid())
+        {
+            for (SciterElement walk(element); walk.IsValid(); walk = walk.GetParent())
+            {
+                if (walk == volumePopupRoot)
+                {
+                    SciterElement btn(rootElement.GetElementByID("volumePopupBtn"));
+                    if (btn.IsValid())
+                    {
+                        btn.RemoveClassName("open");
+                    }
+                    break;
+                }
+            }
+        }
+        return false;
+    }
     if (event_code == EVENT_EMULATION_LOADING)
     {
-        ApplyEmulationLoadingUi();
+        ShowPanel(Panel::Loading);
     }
     else if (event_code == EVENT_EMULATION_RUNNING)
     {
@@ -1199,33 +1648,16 @@ bool SciterMainWindow::OnEvent(SCITER_ELEMENT /*element*/, SCITER_ELEMENT /*sour
     }
     else if (event_code == EVENT_EMULATION_STOPPED)
     {
-        ShowWindow((HWND)m_renderWindow, SW_HIDE);
-        SciterElement LoadingPanel(m_rootElement.GetElementByID("LoadingPanel"));
-        if (LoadingPanel.IsValid())
-        {
-            LoadingPanel.SetStyleAttribute("display", "none");
-        }
-
-        SciterElement romBrowserPanel(m_rootElement.GetElementByID("RomBrowserPanel"));
-        if (romBrowserPanel.IsValid())
-        {
-            romBrowserPanel.SetStyleAttribute("display", "block");
-        }
-        UpdatePausePanel();
+        m_shownFirstFrame = false;
+        ShowPanel(Panel::RomBrowser);
     }
     else if (event_code == EVENT_EMULATION_FIRST_FRAME)
     {
         SettingsStore & settings = SettingsStore::GetInstance();
         if (settings.GetBool(NXCoreSetting::DisplayedFrames))
         {
-            ShowWindow((HWND)m_renderWindow, SW_SHOW);
-            SciterElement LoadingPanel(m_rootElement.GetElementByID("LoadingPanel"));
-            if (LoadingPanel.IsValid())
-            {
-                LoadingPanel.SetStyleAttribute("display", "none");
-            }
+            ShowPanel(Panel::Renderer);
         }
-        UpdatePausePanel();
     }
     else if (event_code == EVENT_DISK_CACHE_STATUS)
     {

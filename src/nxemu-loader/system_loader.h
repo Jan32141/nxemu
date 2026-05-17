@@ -34,12 +34,16 @@ public:
     IRomInfo * LoadedRomInfo() override;
 
     IFileSystemController & FileSystemController() override;
+    IContentProvider & ContentProvider() override;
+    IFilesystem & Filesystem() override;
     IVirtualFile * SynthesizeSystemArchive(const uint64_t title_id) override;
+    IVirtualFile * CreateMemoryFile(const uint8_t * data, uint64_t size, const char * name) override;
     uint32_t GetContentProviderEntriesCount(bool useTitleType, LoaderTitleType titleType, bool useContentRecordType, LoaderContentRecordType contentRecordType, bool useTitleId, unsigned long long titleId) override;
     uint32_t GetContentProviderEntries(bool useTitleType, LoaderTitleType titleType, bool useContentRecordType, LoaderContentRecordType contentRecordType, bool useTitleId, unsigned long long titleId, ContentProviderEntry * entries, uint32_t entryCount) override;
     IFileSysNCA * GetContentProviderEntry(uint64_t title_id, LoaderContentRecordType type) override;
     IFileSysNACP * GetPMControlMetadata(uint64_t programID) override;
     IManualContentProvider & ManualContentProvider() override;
+    FirmwareInstallResult InstallFirmwareFromFolder(const char * folder) override;
 
 private:
     Systemloader() = delete;
