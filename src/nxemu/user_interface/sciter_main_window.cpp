@@ -245,6 +245,28 @@ std::string GetGameTitleLoadingHtml(ISystemloader & loader, const char * verb)
                     titleEsc.c_str());
 }
 
+void ShowFirmwareInstallResult(FirmwareInstallResult result)
+{
+    const char * message = "Unknown error.";
+    const char * const title = result == FirmwareInstallResult::Success ? "Firmware installed" : "Firmware install failed";
+    switch (result)
+    {
+    case FirmwareInstallResult::Success: message = "Firmware installed successfully."; break;
+    case FirmwareInstallResult::InvalidArgument: message = "Invalid path."; break;
+    case FirmwareInstallResult::SourceNotDirectory: message = "The selected path is not a directory."; break;
+    case FirmwareInstallResult::SourceNotFound: message = "The selected file could not be found or opened."; break;
+    case FirmwareInstallResult::InvalidDxci: message = "The selected file is not a valid DXCI image."; break;
+    case FirmwareInstallResult::InvalidZip: message = "The selected file is not a valid firmware ZIP archive."; break;
+    case FirmwareInstallResult::UpdatePartitionNotFound: message = "No firmware update partition was found in that DXCI file."; break;
+    case FirmwareInstallResult::NoNCAsFound: message = "No firmware NCAs were found in the selected source."; break;
+    case FirmwareInstallResult::SystemNandUnavailable: message = "System NAND is not available. Ensure the NAND data directory exists and the emulator initialized successfully."; break;
+    case FirmwareInstallResult::NotWritable: message = "System NAND content is not writable."; break;
+    case FirmwareInstallResult::FailedClearRegistered: message = "Could not clear the registered firmware folder before copying new files."; break;
+    case FirmwareInstallResult::FailedCopy: message = "Copying one or more firmware files failed. See the log for details."; break;
+    }
+    g_notify->DisplayError(message, title);
+}
+
 } // namespace
 
 SciterMainWindow::SciterMainWindow(ISciterUI & sciterUI, const char * windowTitle) :
@@ -396,10 +418,13 @@ void SciterMainWindow::ResetMenu()
     MenuBarItemList optionsMenu;
     optionsMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::OpenControllersDialog), "&Controllers...", nullptr, HotkeyAccelerator(Hotkey::Controllers)));
     optionsMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::OpenSystemConfiguration), "Confi&gure...", nullptr, HotkeyAccelerator(Hotkey::Configure)));
+    MenuBarItemList installFirmwareMenu;
     if (!m_emulationRunning && m_modules.IsValid())
     {
         optionsMenu.push_back(MenuBarItem(MenuBarItem::SPLITER));
-        optionsMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::InstallFirmware), "Install &Firmware...", nullptr, nullptr));
+        installFirmwareMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::InstallFirmwareFromFile), "Install from &DXCI or ZIP...", nullptr, nullptr));
+        installFirmwareMenu.push_back(MenuBarItem(static_cast<int32_t>(GuiAction::InstallFirmwareFromFolder), "Install from &folder...", nullptr, nullptr));
+        optionsMenu.push_back(MenuBarItem(MenuBarItem::SUB_MENU, "Install &Firmware", &installFirmwareMenu));
     }
     mainTitleMenu.push_back(MenuBarItem(MenuBarItem::SUB_MENU, "&Options", &optionsMenu));
 
@@ -818,7 +843,28 @@ void SciterMainWindow::OnOpenFile()
     }
 }
 
-void SciterMainWindow::OnInstallFirmware()
+void SciterMainWindow::OnInstallFirmwareFromFile()
+{
+    if (m_window == nullptr || m_emulationRunning || !m_modules.IsValid())
+    {
+        return;
+    }
+
+    Path file;
+    const char * filter =
+        "Firmware Package (*.dxci, *.zip)\0*.dxci;*.zip\0DXCI (*.dxci)\0*.dxci\0ZIP (*.zip)\0*.zip\0All files (*.*)\0*.*\0";
+    if (!file.FileSelect((void *)m_window->GetHandle(), Path(Path::CURRENT_DIRECTORY), filter, true))
+    {
+        return;
+    }
+
+    ISystemloader & loader = m_modules.Modules().Systemloader();
+    const FirmwareInstallResult result = loader.InstallFirmwareFromFile(file);
+    UpdateEmulationStatusText();
+    ShowFirmwareInstallResult(result);
+}
+
+void SciterMainWindow::OnInstallFirmwareFromFolder()
 {
     if (m_window == nullptr || m_emulationRunning || !m_modules.IsValid())
     {
@@ -834,38 +880,8 @@ void SciterMainWindow::OnInstallFirmware()
 
     ISystemloader & loader = m_modules.Modules().Systemloader();
     const FirmwareInstallResult result = loader.InstallFirmwareFromFolder(folder);
-
-    switch (result)
-    {
-    case FirmwareInstallResult::Success:
-        g_notify->DisplayError("Firmware installed successfully.", "Firmware installed");
-        UpdateStatusWidgets();
-        break;
-    case FirmwareInstallResult::InvalidArgument:
-        g_notify->DisplayError("Invalid folder path.", "Firmware install failed");
-        break;
-    case FirmwareInstallResult::SourceNotDirectory:
-        g_notify->DisplayError("The selected path is not a directory.", "Firmware install failed");
-        break;
-    case FirmwareInstallResult::NoNCAsFound:
-        g_notify->DisplayError("No .dnca files found in that folder. ", "Firmware install failed");
-        break;
-    case FirmwareInstallResult::SystemNandUnavailable:
-        g_notify->DisplayError("System NAND is not available. Ensure the NAND data directory exists and the emulator initialized successfully.", "Firmware install failed");
-        break;
-    case FirmwareInstallResult::NotWritable:
-        g_notify->DisplayError("System NAND content is not writable.", "Firmware install failed");
-        break;
-    case FirmwareInstallResult::FailedClearRegistered:
-        g_notify->DisplayError("Could not clear the registered firmware folder before copying new files.", "Firmware install failed");
-        break;
-    case FirmwareInstallResult::FailedCopy:
-        g_notify->DisplayError("Copying one or more firmware files failed. See the log for details.", "Firmware install failed");
-        break;
-    default:
-        g_notify->DisplayError("Unknown error.", "Firmware install failed");
-        break;
-    }
+    UpdateEmulationStatusText();
+    ShowFirmwareInstallResult(result);
 }
 
 void SciterMainWindow::OnFileExit()
@@ -1104,8 +1120,11 @@ void SciterMainWindow::OnGuiAction(GuiAction action)
     case GuiAction::LoadFile:
         OnOpenFile();
         break;
-    case GuiAction::InstallFirmware:
-        OnInstallFirmware();
+    case GuiAction::InstallFirmwareFromFile:
+        OnInstallFirmwareFromFile();
+        break;
+    case GuiAction::InstallFirmwareFromFolder:
+        OnInstallFirmwareFromFolder();
         break;
     case GuiAction::ExitApplication:
         OnFileExit();

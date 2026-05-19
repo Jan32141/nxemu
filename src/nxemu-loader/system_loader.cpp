@@ -8,15 +8,21 @@
 #include "core/file_sys/romfs_factory.h"
 #include "core/file_sys/submission_package.h"
 #include "core/file_sys/system_archive/system_archive.h"
+#include "core/file_sys/vfs/vfs.h"
 #include "core/file_sys/vfs/vfs_real.h"
 #include "core/file_sys/vfs/vfs_types.h"
 #include "core/file_sys/vfs/vfs_vector.h"
 #include "core/loader/loader.h"
+#include "firmware_zip.h"
 #include "rom_info.h"
+#include <algorithm>
+#include <cctype>
 #include <common/path.h>
+#include <cstdint>
 #include <filesystem>
 #include <fmt/core.h>
 #include <nxemu-core/settings/identifiers.h>
+#include <random>
 #include <yuzu_common/fs/fs.h>
 
 extern IModuleSettings * g_settings;
@@ -37,30 +43,252 @@ StorageId GetStorageIdForFrontendSlot(std::optional<FileSys::ContentProviderUnio
     case FileSys::ContentProviderUnionSlot::UserNAND: return StorageId::NandUser;
     case FileSys::ContentProviderUnionSlot::SysNAND: return StorageId::NandSystem;
     case FileSys::ContentProviderUnionSlot::SDMC: return StorageId::SdCard;
-    case FileSys::ContentProviderUnionSlot::FrontendManual:return StorageId::Host;
+    case FileSys::ContentProviderUnionSlot::FrontendManual: return StorageId::Host;
     }
     return StorageId::None;
 }
 
-    bool HasSupportedFileExtension(const char * fileName)
+std::string GetRegisteredNcaFilename(const std::string & source_name)
+{
+    std::string filename = source_name;
+    const auto pos = filename.find_last_of("/\\");
+    if (pos != std::string::npos)
     {
-        static const char * supported_extensions[] = {
-            "nro",
-            "dxci",
-            "dnsp"
-        };
+        filename = filename.substr(pos + 1);
+    }
 
-        std::string ext = Path(fileName).GetExtension();
-        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-        for (const char* supported : supported_extensions) 
+    std::string ext = filename;
+    const auto dot = ext.rfind('.');
+    if (dot != std::string::npos)
+    {
+        ext = ext.substr(dot);
+        std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    }
+    else
+    {
+        ext.clear();
+    }
+
+    if (ext == ".dnca")
+    {
+        return filename.substr(0, dot) + ".nca";
+    }
+    if (ext != ".nca")
+    {
+        return filename + ".nca";
+    }
+    return filename;
+}
+
+constexpr uint64_t SystemUpdateTitleId = 0x0100000000000816ULL;
+
+struct FirmwareInstallSource
+{
+    FileSys::VirtualFile file;
+    std::string registered_name;
+};
+
+std::string ToLowerAscii(std::string value)
+{
+    std::transform(value.begin(), value.end(), value.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return value;
+}
+
+bool ContainsSystemUpdateMeta(const std::vector<FirmwareInstallSource> & sources)
+{
+    for (const FirmwareInstallSource & source : sources)
+    {
+        const FileSys::NCA nca(source.file);
+        if (nca.GetStatus() != LoaderResultStatus::Success)
         {
-            if (ext == supported) 
+            continue;
+        }
+        if (nca.GetType() == FileSys::NCAContentType::Meta && nca.GetTitleId() == SystemUpdateTitleId)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::filesystem::path CreateFirmwareExtractDirectory()
+{
+    std::filesystem::path directory =
+        std::filesystem::temp_directory_path() / "nxemu_firmware_install";
+    std::error_code ec;
+    std::filesystem::create_directories(directory, ec);
+
+    std::random_device random_device;
+    std::uniform_int_distribution<uint64_t> distribution(0, UINT64_MAX);
+    for (int attempt = 0; attempt < 16; ++attempt)
+    {
+        const std::filesystem::path candidate =
+            directory / fmt::format("{:016X}", distribution(random_device));
+        if (!std::filesystem::exists(candidate))
+        {
+            std::filesystem::create_directories(candidate, ec);
+            if (!ec)
             {
-                return true;
+                return candidate;
             }
         }
-        return false;
     }
+    return {};
+}
+
+void CollectFirmwareSourcesFromPath(const std::filesystem::path & path, const FileSys::VirtualFilesystem & vfs, std::vector<FirmwareInstallSource> & sources)
+{
+    std::error_code ec;
+    if (!std::filesystem::exists(path, ec))
+    {
+        return;
+    }
+
+    if (std::filesystem::is_regular_file(path, ec))
+    {
+        const std::string extension = ToLowerAscii(path.extension().string());
+        if (extension != ".nca" && extension != ".dnca")
+        {
+            return;
+        }
+
+        const FileSys::VirtualFile file = vfs->OpenFile(path.generic_string(), VirtualFileOpenMode::Read);
+        if (!file)
+        {
+            return;
+        }
+
+        const FileSys::NCA nca(file);
+        if (nca.GetStatus() != LoaderResultStatus::Success)
+        {
+            return;
+        }
+
+        sources.push_back({file, GetRegisteredNcaFilename(path.filename().string())});
+        return;
+    }
+
+    if (!std::filesystem::is_directory(path, ec))
+    {
+        return;
+    }
+
+    for (const std::filesystem::directory_entry & entry : std::filesystem::recursive_directory_iterator(path, ec))
+    {
+        if (!entry.is_regular_file())
+        {
+            continue;
+        }
+
+        const std::filesystem::path entry_path = entry.path();
+        const std::string filename = entry_path.filename().string();
+        const std::string extension = ToLowerAscii(entry_path.extension().string());
+
+        if (filename == "00" && ToLowerAscii(entry_path.parent_path().extension().string()) == ".nca")
+        {
+            const FileSys::VirtualFile file = vfs->OpenFile(entry_path.generic_string(), VirtualFileOpenMode::Read);
+            if (!file)
+            {
+                continue;
+            }
+
+            const FileSys::NCA nca(file);
+            if (nca.GetStatus() != LoaderResultStatus::Success)
+            {
+                continue;
+            }
+
+            sources.push_back({file, GetRegisteredNcaFilename(entry_path.parent_path().filename().string())});
+            continue;
+        }
+
+        if (extension != ".nca" && extension != ".dnca")
+        {
+            continue;
+        }
+
+        const FileSys::VirtualFile file = vfs->OpenFile(entry_path.generic_string(), VirtualFileOpenMode::Read);
+        if (!file)
+        {
+            continue;
+        }
+
+        const FileSys::NCA nca(file);
+        if (nca.GetStatus() != LoaderResultStatus::Success)
+        {
+            continue;
+        }
+
+        sources.push_back({file, GetRegisteredNcaFilename(filename)});
+    }
+}
+
+FirmwareInstallResult InstallFirmwareFilesToRegistered(::FileSystemController & fs_controller, const std::vector<FirmwareInstallSource> & sources)
+{
+    if (sources.empty())
+    {
+        return FirmwareInstallResult::NoNCAsFound;
+    }
+
+    const FileSys::VirtualDir sys_content = fs_controller.GetSystemNANDContentDirectory();
+    if (!sys_content)
+    {
+        return FirmwareInstallResult::SystemNandUnavailable;
+    }
+    if (!sys_content->IsWritable())
+    {
+        return FirmwareInstallResult::NotWritable;
+    }
+    if (!sys_content->CleanSubdirectoryRecursive("registered"))
+    {
+        return FirmwareInstallResult::FailedClearRegistered;
+    }
+
+    const FileSys::VirtualDir registered = sys_content->GetDirectoryRelative("registered");
+    if (!registered)
+    {
+        return FirmwareInstallResult::FailedClearRegistered;
+    }
+
+    for (const FirmwareInstallSource & source : sources)
+    {
+        if (!source.file)
+        {
+            return FirmwareInstallResult::FailedCopy;
+        }
+
+        const std::string filename = source.registered_name.empty() ? GetRegisteredNcaFilename(source.file->GetName()) : source.registered_name;
+        const FileSys::VirtualFile dst_file = registered->CreateFileRelative(filename);
+        if (!dst_file || !FileSys::VfsRawCopy(source.file, dst_file))
+        {
+            LOG_ERROR(Core, "Firmware install: copy failed for {}", filename);
+            return FirmwareInstallResult::FailedCopy;
+        }
+    }
+
+    return FirmwareInstallResult::Success;
+}
+
+bool HasSupportedFileExtension(const char * fileName)
+{
+    static const char * supported_extensions[] = {
+        "nro",
+        "dxci",
+        "dnsp"
+    };
+
+    std::string ext = Path(fileName).GetExtension();
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+    for (const char * supported : supported_extensions)
+    {
+        if (ext == supported)
+        {
+            return true;
+        }
+    }
+    return false;
+}
 
 } // Anonymous namespace
 
@@ -91,7 +319,8 @@ private:
     FileSys::VirtualFilesystem & m_vfs;
 };
 
-struct Systemloader::Impl {
+struct Systemloader::Impl
+{
     explicit Impl(Systemloader & loader, ISystemModules & modules) :
         m_loader(loader),
         m_modules(modules),
@@ -180,7 +409,7 @@ bool Systemloader::LoadRom(const char * fileName)
     g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::RomLoaded);
     Loader::AppLoader * app_loader = impl->m_appLoader.get();
     const LoaderFileType file_type = impl->m_appLoader->GetFileType();
-    if (file_type == LoaderFileType::Unknown || file_type == LoaderFileType::Error) 
+    if (file_type == LoaderFileType::Unknown || file_type == LoaderFileType::Error)
     {
         g_notify->DisplayError("The file format is not supported.", "Error loading file!");
         g_settings->SetBool(NXCoreSetting::EmulationState, (int32_t)EmulationState::Stopped);
@@ -188,7 +417,7 @@ bool Systemloader::LoadRom(const char * fileName)
     }
     uint64_t program_id = 0;
     const LoaderResultStatus res = app_loader->ReadProgramId(program_id);
-    if (res == LoaderResultStatus::Success && file_type == LoaderFileType::NCA) 
+    if (res == LoaderResultStatus::Success && file_type == LoaderFileType::NCA)
     {
         UNIMPLEMENTED();
     }
@@ -221,7 +450,7 @@ bool Systemloader::LoadRom(const char * fileName)
     {
         LOG_ERROR(Core, "Failed to read title for ROM!");
     }
-    
+
     const auto [load_result, load_parameters] = app_loader->Load(*this, impl->m_modules);
     if (load_result != LoaderResultStatus::Success)
     {
@@ -299,7 +528,7 @@ FileSys::ContentProvider & Systemloader::GetContentProvider()
     return *impl->m_contentProvider;
 }
 
-void Systemloader::RegisterContentProvider(FileSys::ContentProviderUnionSlot slot, FileSys::ContentProvider* provider) 
+void Systemloader::RegisterContentProvider(FileSys::ContentProviderUnionSlot slot, FileSys::ContentProvider * provider)
 {
     impl->m_contentProvider->SetSlot(slot, provider);
 }
@@ -428,7 +657,7 @@ FirmwareInstallResult Systemloader::InstallFirmwareFromFolder(const char * utf8_
             continue;
         }
         std::string ext = entry.path().extension().string();
-        std::transform(ext.begin(), ext.end(), ext.begin(),[](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
         if (ext == ".dnca")
         {
             nca_paths.push_back(entry.path());
@@ -440,27 +669,8 @@ FirmwareInstallResult Systemloader::InstallFirmwareFromFolder(const char * utf8_
         return FirmwareInstallResult::NoNCAsFound;
     }
 
-    ::FileSystemController & fs_controller = impl->m_fsController;
-    const FileSys::VirtualDir sys_content = fs_controller.GetSystemNANDContentDirectory();
-    if (!sys_content)
-    {
-        return FirmwareInstallResult::SystemNandUnavailable;
-    }
-    if (!sys_content->IsWritable())
-    {
-        return FirmwareInstallResult::NotWritable;
-    }
-    if (!sys_content->CleanSubdirectoryRecursive("registered"))
-    {
-        return FirmwareInstallResult::FailedClearRegistered;
-    }
-
-    const FileSys::VirtualDir registered = sys_content->GetDirectoryRelative("registered");
-    if (!registered)
-    {
-        return FirmwareInstallResult::FailedClearRegistered;
-    }
-
+    std::vector<FirmwareInstallSource> sources;
+    sources.reserve(nca_paths.size());
     for (const std::filesystem::path & src_path : nca_paths)
     {
         const std::string path_utf8 = src_path.generic_string();
@@ -470,16 +680,151 @@ FirmwareInstallResult Systemloader::InstallFirmwareFromFolder(const char * utf8_
             LOG_ERROR(Core, "Firmware install: could not open source file {}", path_utf8);
             return FirmwareInstallResult::FailedCopy;
         }
-        const std::string filename = src_path.stem().string() + ".nca";
-        const FileSys::VirtualFile dst_file = registered->CreateFileRelative(filename);
-        if (!dst_file || !FileSys::VfsRawCopy(src_file, dst_file))
-        {
-            LOG_ERROR(Core, "Firmware install: copy failed for {}", filename);
-            return FirmwareInstallResult::FailedCopy;
-        }
+        sources.push_back({src_file, GetRegisteredNcaFilename(src_path.filename().string())});
+    }
+
+    ::FileSystemController & fs_controller = impl->m_fsController;
+    const FirmwareInstallResult result = InstallFirmwareFilesToRegistered(fs_controller, sources);
+    if (result != FirmwareInstallResult::Success)
+    {
+        return result;
     }
 
     fs_controller.CreateFactories(*impl->m_virtualFilesystem, true);
     LOG_INFO(Core, "Firmware install: copied {} .dnca file(s) as .nca into system NAND registered storage", nca_paths.size());
+    return FirmwareInstallResult::Success;
+}
+
+FirmwareInstallResult InstallFirmwareFromDxciFile(const FileSys::VirtualFilesystem & vfs, ::FileSystemController & fs_controller, const std::filesystem::path & source_file)
+{
+    const std::string path_utf8 = source_file.generic_string();
+    const FileSys::VirtualFile file = vfs->OpenFile(path_utf8, VirtualFileOpenMode::Read);
+    if (!file)
+    {
+        return FirmwareInstallResult::SourceNotFound;
+    }
+
+    FileSys::XCI xci(file);
+    if (xci.GetStatus() != LoaderResultStatus::Success)
+    {
+        return FirmwareInstallResult::InvalidDxci;
+    }
+
+    const FileSys::VirtualDir update = xci.GetUpdatePartition();
+    if (update == nullptr)
+    {
+        return FirmwareInstallResult::UpdatePartitionNotFound;
+    }
+
+    if (xci.GetSystemUpdateVersion() == 0)
+    {
+        return FirmwareInstallResult::NoNCAsFound;
+    }
+
+    std::vector<FirmwareInstallSource> sources;
+    for (const FileSys::VirtualFile & update_file : update->GetFiles())
+    {
+        const FileSys::NCA nca(update_file);
+        if (nca.GetStatus() != LoaderResultStatus::Success)
+        {
+            continue;
+        }
+        sources.push_back({update_file, GetRegisteredNcaFilename(update_file->GetName())});
+    }
+
+    if (sources.empty())
+    {
+        return FirmwareInstallResult::NoNCAsFound;
+    }
+
+    const FirmwareInstallResult result = InstallFirmwareFilesToRegistered(fs_controller, sources);
+    if (result != FirmwareInstallResult::Success)
+    {
+        return result;
+    }
+
+    LOG_INFO(Core, "Firmware install: copied {} NCA(s) from DXCI update partition into system NAND registered storage", sources.size());
+    return FirmwareInstallResult::Success;
+}
+
+FirmwareInstallResult InstallFirmwareFromZipFile(const FileSys::VirtualFilesystem & vfs, ::FileSystemController & fs_controller, const std::filesystem::path & source_file)
+{
+    const std::filesystem::path extract_directory = CreateFirmwareExtractDirectory();
+    if (extract_directory.empty())
+    {
+        return FirmwareInstallResult::InvalidZip;
+    }
+
+    struct ExtractDirectoryCleanup
+    {
+        std::filesystem::path path;
+        ~ExtractDirectoryCleanup()
+        {
+            if (!path.empty())
+            {
+                std::error_code ec;
+                std::filesystem::remove_all(path, ec);
+            }
+        }
+    } cleanup{extract_directory};
+
+    if (!ExtractFirmwareZipToDirectory(source_file, extract_directory))
+    {
+        return FirmwareInstallResult::InvalidZip;
+    }
+
+    std::vector<FirmwareInstallSource> sources;
+    CollectFirmwareSourcesFromPath(extract_directory, vfs, sources);
+    if (sources.empty() || !ContainsSystemUpdateMeta(sources))
+    {
+        return FirmwareInstallResult::NoNCAsFound;
+    }
+
+    const FirmwareInstallResult result = InstallFirmwareFilesToRegistered(fs_controller, sources);
+    if (result != FirmwareInstallResult::Success)
+    {
+        return result;
+    }
+
+    LOG_INFO(Core, "Firmware install: copied {} NCA(s) from ZIP into system NAND registered storage", sources.size());
+    return FirmwareInstallResult::Success;
+}
+
+FirmwareInstallResult Systemloader::InstallFirmwareFromFile(const char * utf8_file_path)
+{
+    if (utf8_file_path == nullptr || utf8_file_path[0] == '\0')
+    {
+        return FirmwareInstallResult::InvalidArgument;
+    }
+
+    const std::filesystem::path source_file(utf8_file_path);
+    if (!Common::FS::IsFile(source_file))
+    {
+        return FirmwareInstallResult::SourceNotFound;
+    }
+
+    const std::string extension = ToLowerAscii(source_file.extension().string());
+    ::FileSystemController & fs_controller = impl->m_fsController;
+    FirmwareInstallResult result = FirmwareInstallResult::InvalidArgument;
+
+    if (extension == ".dxci")
+    {
+        result = InstallFirmwareFromDxciFile(impl->m_virtualFilesystem, fs_controller, source_file);
+    }
+    else if (extension == ".zip")
+    {
+        result = InstallFirmwareFromZipFile(impl->m_virtualFilesystem, fs_controller, source_file);
+    }
+    else
+    {
+        return FirmwareInstallResult::InvalidArgument;
+    }
+
+    if (result != FirmwareInstallResult::Success)
+    {
+        return result;
+    }
+
+    fs_controller.CreateFactories(*impl->m_virtualFilesystem, true);
     return FirmwareInstallResult::Success;
 }

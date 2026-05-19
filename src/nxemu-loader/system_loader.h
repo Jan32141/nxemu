@@ -44,6 +44,7 @@ public:
     IFileSysNACP * GetPMControlMetadata(uint64_t programID) override;
     IManualContentProvider & ManualContentProvider() override;
     FirmwareInstallResult InstallFirmwareFromFolder(const char * folder) override;
+    FirmwareInstallResult InstallFirmwareFromFile(const char * file) override;
 
 private:
     Systemloader() = delete;

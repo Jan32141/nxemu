@@ -6,6 +6,7 @@
 #include <string>
 #include <nxemu-core/modules/system_modules.h>
 #include <nxemu-module-spec/base.h>
+#include <nxemu-module-spec/system_loader.h>
 #include <sciter_element.h>
 #include <sciter_handler.h>
 #include <sciter_ui.h>
@@ -38,7 +39,8 @@ class SciterMainWindow :
         StopEmulation,
         OpenControllersDialog,
         OpenSystemConfiguration,
-        InstallFirmware,
+        InstallFirmwareFromFile,
+        InstallFirmwareFromFolder,
         ToggleFullscreen,
         ToggleStartGamesInFullscreen,
         ToggleHideUi,
@@ -103,7 +105,8 @@ private:
     void OnPauseContinueGame();
     void OnSystemConfig();
     void OnInputConfig();
-    void OnInstallFirmware();
+    void OnInstallFirmwareFromFile();
+    void OnInstallFirmwareFromFolder();
     void OnRecetGame(uint32_t fileIndex);
     void OnToggleDockedMode();
     void OnToggleStartGamesInFullscreen();

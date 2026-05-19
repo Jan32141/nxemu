@@ -304,6 +304,10 @@ enum class FirmwareInstallResult : uint32_t {
     Success = 0,
     InvalidArgument,
     SourceNotDirectory,
+    SourceNotFound,
+    InvalidDxci,
+    InvalidZip,
+    UpdatePartitionNotFound,
     NoNCAsFound,
     SystemNandUnavailable,
     NotWritable,
@@ -330,6 +334,7 @@ nxinterface ISystemloader
     virtual IFileSysNACP * GetPMControlMetadata(uint64_t programID) = 0;
     virtual IManualContentProvider & ManualContentProvider() = 0;
     virtual FirmwareInstallResult InstallFirmwareFromFolder(const char * utf8_folder_path) = 0;
+    virtual FirmwareInstallResult InstallFirmwareFromFile(const char * utf8_file_path) = 0;
 };
 
 EXPORT ISystemloader * CALL CreateSystemLoader(ISystemModules & modules);
