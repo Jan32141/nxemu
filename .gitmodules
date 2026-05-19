@@ -52,6 +52,9 @@
 [submodule "external/zstd"]
 	path = external/zstd
 	url = https://github.com/facebook/zstd
+[submodule "external/zlib"]
+	path = external/zlib
+	url = https://github.com/madler/zlib.git
 [submodule "external/opus"]
 	path = external/opus
 	url = https://github.com/xiph/opus.git
