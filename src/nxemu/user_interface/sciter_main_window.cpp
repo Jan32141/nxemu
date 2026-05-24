@@ -113,58 +113,13 @@ void LoadImageToElement(SciterElement elem, const std::vector<uint8_t> & data)
 
 std::string GetInstalledFirmwareDisplayVersion(ISystemloader & loader)
 {
-    constexpr uint64_t FirmwareVersionSystemDataId = 0x0100000000000809ULL;
-
-    IFileSysRegisteredCache & nand = loader.FileSystemController().GetSystemNANDContents();
-    FileSysNCAPtr nca = nand.GetEntry(FirmwareVersionSystemDataId, LoaderContentRecordType::Data);
-    if (!nca)
+    char buffer[32]{};
+    const uint32_t length = loader.GetInstalledFirmwareDisplayVersion(buffer, sizeof(buffer));
+    if (length == 0)
     {
         return {};
     }
-
-    IVirtualFilePtr romfs_file(nca->GetRomFS());
-    if (!romfs_file)
-    {
-        return {};
-    }
-
-    IVirtualDirectoryPtr romfs = romfs_file->ExtractRomFS();
-    if (!romfs)
-    {
-        return {};
-    }
-
-    IVirtualFilePtr version_file(romfs->GetFile("file"));
-    if (!version_file)
-    {
-        return {};
-    }
-
-    struct FirmwareVersionFormatRaw
-    {
-        uint8_t major;
-        uint8_t minor;
-        uint8_t micro;
-        uint8_t pad0;
-        uint8_t revision_major;
-        uint8_t revision_minor;
-        uint8_t pad1[2];
-        char platform[0x20];
-        uint8_t version_hash[0x40];
-        char display_version[0x18];
-        char display_title[0x80];
-    };
-    static_assert(sizeof(FirmwareVersionFormatRaw) == 0x100);
-
-    FirmwareVersionFormatRaw firmware{};
-    const uint64_t bytes_read = version_file->ReadBytes(reinterpret_cast<uint8_t *>(&firmware), sizeof(firmware), 0);
-    if (bytes_read != sizeof(firmware))
-    {
-        return {};
-    }
-
-    const auto end = std::find(std::begin(firmware.display_version), std::end(firmware.display_version), '\0');
-    return std::string(firmware.display_version, end);
+    return std::string(buffer, length);
 }
 
 void UpdateLoadingProgressBar(SciterElement & fillEl, bool indeterminate, int widthPercent, bool shaderBuilding)
@@ -243,28 +198,6 @@ std::string GetGameTitleLoadingHtml(ISystemloader & loader, const char * verb)
     const std::string titleEsc = HtmlEscapeForHtmlContent(std::string(buf.data()));
     return stdstr_f("<span class=\"loading-verb\">%s</span> <span class=\"loading-game-name\">%s</span>", verb,
                     titleEsc.c_str());
-}
-
-void ShowFirmwareInstallResult(FirmwareInstallResult result)
-{
-    const char * message = "Unknown error.";
-    const char * const title = result == FirmwareInstallResult::Success ? "Firmware installed" : "Firmware install failed";
-    switch (result)
-    {
-    case FirmwareInstallResult::Success: message = "Firmware installed successfully."; break;
-    case FirmwareInstallResult::InvalidArgument: message = "Invalid path."; break;
-    case FirmwareInstallResult::SourceNotDirectory: message = "The selected path is not a directory."; break;
-    case FirmwareInstallResult::SourceNotFound: message = "The selected file could not be found or opened."; break;
-    case FirmwareInstallResult::InvalidDxci: message = "The selected file is not a valid DXCI image."; break;
-    case FirmwareInstallResult::InvalidZip: message = "The selected file is not a valid firmware ZIP archive."; break;
-    case FirmwareInstallResult::UpdatePartitionNotFound: message = "No firmware update partition was found in that DXCI file."; break;
-    case FirmwareInstallResult::NoNCAsFound: message = "No firmware NCAs were found in the selected source."; break;
-    case FirmwareInstallResult::SystemNandUnavailable: message = "System NAND is not available. Ensure the NAND data directory exists and the emulator initialized successfully."; break;
-    case FirmwareInstallResult::NotWritable: message = "System NAND content is not writable."; break;
-    case FirmwareInstallResult::FailedClearRegistered: message = "Could not clear the registered firmware folder before copying new files."; break;
-    case FirmwareInstallResult::FailedCopy: message = "Copying one or more firmware files failed. See the log for details."; break;
-    }
-    g_notify->DisplayError(message, title);
 }
 
 } // namespace
@@ -575,6 +508,7 @@ void SciterMainWindow::LoadGame(const char * path)
 
     ISystemloader & loader = m_modules.Modules().Systemloader();
     loader.LoadRom(path);
+    UpdateEmulationStatusText();
 }
 
 void SciterMainWindow::UpdateStatusWidgets()
@@ -888,14 +822,17 @@ void SciterMainWindow::AllowOSSleep()
 
 void SciterMainWindow::OnOpenFile()
 {
-    if (m_modules.IsValid())
+    if (m_window == nullptr || !m_modules.IsValid())
     {
-        m_modules.Setup(*this);
-        RegisterApplets();
-
-        ISystemloader & loader = m_modules.Modules().Systemloader();
-        loader.SelectAndLoad((void *)m_window->GetHandle());
+        return;
     }
+
+    m_modules.Setup(*this);
+    RegisterApplets();
+
+    ISystemloader & loader = m_modules.Modules().Systemloader();
+    loader.SelectAndLoad((void *)m_window->GetHandle());
+    UpdateEmulationStatusText();
 }
 
 void SciterMainWindow::OnInstallFirmwareFromFile()
@@ -913,10 +850,8 @@ void SciterMainWindow::OnInstallFirmwareFromFile()
         return;
     }
 
-    ISystemloader & loader = m_modules.Modules().Systemloader();
-    const FirmwareInstallResult result = loader.InstallFirmwareFromFile(file);
+    m_modules.Modules().Systemloader().InstallFirmwarePackage(file);
     UpdateEmulationStatusText();
-    ShowFirmwareInstallResult(result);
 }
 
 void SciterMainWindow::OnInstallFirmwareFromFolder()
@@ -933,10 +868,8 @@ void SciterMainWindow::OnInstallFirmwareFromFolder()
         return;
     }
 
-    ISystemloader & loader = m_modules.Modules().Systemloader();
-    const FirmwareInstallResult result = loader.InstallFirmwareFromFolder(folder);
+    m_modules.Modules().Systemloader().InstallFirmwarePackage((const char *)folder);
     UpdateEmulationStatusText();
-    ShowFirmwareInstallResult(result);
 }
 
 void SciterMainWindow::OnFileExit()

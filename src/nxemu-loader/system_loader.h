@@ -43,8 +43,8 @@ public:
     IFileSysNCA * GetContentProviderEntry(uint64_t title_id, LoaderContentRecordType type) override;
     IFileSysNACP * GetPMControlMetadata(uint64_t programID) override;
     IManualContentProvider & ManualContentProvider() override;
-    FirmwareInstallResult InstallFirmwareFromFolder(const char * folder) override;
-    FirmwareInstallResult InstallFirmwareFromFile(const char * file) override;
+    uint32_t GetInstalledFirmwareDisplayVersion(char * buffer, uint32_t buffer_size) const override;
+    bool InstallFirmwarePackage(const char * utf8_path) override;
 
 private:
     Systemloader() = delete;

@@ -300,21 +300,6 @@ nxinterface IRomInfo
     virtual void Release() = 0;
 };
 
-enum class FirmwareInstallResult : uint32_t {
-    Success = 0,
-    InvalidArgument,
-    SourceNotDirectory,
-    SourceNotFound,
-    InvalidDxci,
-    InvalidZip,
-    UpdatePartitionNotFound,
-    NoNCAsFound,
-    SystemNandUnavailable,
-    NotWritable,
-    FailedClearRegistered,
-    FailedCopy,
-};
-
 nxinterface ISystemloader
 {
     virtual bool Initialize() = 0;
@@ -333,8 +318,8 @@ nxinterface ISystemloader
     virtual IFileSysNCA * GetContentProviderEntry(uint64_t title_id, LoaderContentRecordType type) = 0;
     virtual IFileSysNACP * GetPMControlMetadata(uint64_t programID) = 0;
     virtual IManualContentProvider & ManualContentProvider() = 0;
-    virtual FirmwareInstallResult InstallFirmwareFromFolder(const char * utf8_folder_path) = 0;
-    virtual FirmwareInstallResult InstallFirmwareFromFile(const char * utf8_file_path) = 0;
+    virtual uint32_t GetInstalledFirmwareDisplayVersion(char * buffer, uint32_t buffer_size) const = 0;
+    virtual bool InstallFirmwarePackage(const char * utf8_path) = 0;
 };
 
 EXPORT ISystemloader * CALL CreateSystemLoader(ISystemModules & modules);

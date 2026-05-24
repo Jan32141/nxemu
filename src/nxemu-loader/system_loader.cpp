@@ -5,6 +5,7 @@
 #include "core/file_sys/filesystem.h"
 #include "core/file_sys/patch_manager.h"
 #include "core/file_sys/registered_cache.h"
+#include "core/file_sys/romfs.h"
 #include "core/file_sys/romfs_factory.h"
 #include "core/file_sys/submission_package.h"
 #include "core/file_sys/system_archive/system_archive.h"
@@ -12,6 +13,7 @@
 #include "core/file_sys/vfs/vfs_real.h"
 #include "core/file_sys/vfs/vfs_types.h"
 #include "core/file_sys/vfs/vfs_vector.h"
+#include "core/hle/service/set/settings_types.h"
 #include "core/loader/loader.h"
 #include "firmware_zip.h"
 #include "loader_settings.h"
@@ -31,6 +33,16 @@ extern IModuleNotification * g_notify;
 
 namespace
 {
+using FirmwareVersionFormat = Service::Set::FirmwareVersionFormat;
+
+constexpr uint64_t SystemUpdateTitleId = 0x0100000000000816ULL;
+constexpr uint64_t FirmwareVersionSystemDataId = 0x0100000000000809ULL;
+
+struct FirmwareInstallSource
+{
+    FileSys::VirtualFile file;
+    std::string registered_name;
+};
 
 StorageId GetStorageIdForFrontendSlot(std::optional<FileSys::ContentProviderUnionSlot> slot)
 {
@@ -81,14 +93,6 @@ std::string GetRegisteredNcaFilename(const std::string & source_name)
     return filename;
 }
 
-constexpr uint64_t SystemUpdateTitleId = 0x0100000000000816ULL;
-
-struct FirmwareInstallSource
-{
-    FileSys::VirtualFile file;
-    std::string registered_name;
-};
-
 std::string ToLowerAscii(std::string value)
 {
     std::transform(value.begin(), value.end(), value.begin(),
@@ -110,6 +114,121 @@ bool ContainsSystemUpdateMeta(const std::vector<FirmwareInstallSource> & sources
             return true;
         }
     }
+    return false;
+}
+
+bool IsFirmwareVersionNewer(const FirmwareVersionFormat & package, const FirmwareVersionFormat & installed)
+{
+    if (package.major != installed.major)
+    {
+        return package.major > installed.major;
+    }
+    if (package.minor != installed.minor)
+    {
+        return package.minor > installed.minor;
+    }
+    return package.micro > installed.micro;
+}
+
+bool ReadInstalledFirmwareVersionRaw(::FileSystemController & fs_controller, FirmwareVersionFormat & out_firmware)
+{
+    FileSys::RegisteredCache * const nand = fs_controller.SystemNANDContents();
+    if (nand == nullptr)
+    {
+        return false;
+    }
+
+    const FileSys::VirtualFile nca_file = nand->GetEntryRaw(FirmwareVersionSystemDataId, LoaderContentRecordType::Data);
+    if (nca_file == nullptr)
+    {
+        return false;
+    }
+
+    const FileSys::NCA nca(nca_file);
+    if (nca.GetStatus() != LoaderResultStatus::Success)
+    {
+        return false;
+    }
+
+    const FileSys::VirtualFile romfs_file = nca.RomFS();
+    if (romfs_file == nullptr)
+    {
+        return false;
+    }
+
+    const FileSys::VirtualDir romfs = ExtractRomFS(romfs_file);
+    if (romfs == nullptr)
+    {
+        return false;
+    }
+
+    const FileSys::VirtualFile version_file = romfs->GetFile("file");
+    if (version_file == nullptr)
+    {
+        return false;
+    }
+
+    const uint64_t bytes_read = version_file->ReadBytes(reinterpret_cast<uint8_t *>(&out_firmware), sizeof(out_firmware), 0);
+    return bytes_read == sizeof(out_firmware);
+}
+
+std::string GetFirmwareDisplayVersion(const FirmwareVersionFormat & firmware)
+{
+    const std::array<char, 0x18>::const_iterator end = std::find(firmware.display_version.begin(), firmware.display_version.end(), '\0');
+    const std::string version(firmware.display_version.begin(), end);
+    if (!version.empty())
+    {
+        return version;
+    }
+    return "unknown";
+}
+
+bool QueryFirmwarePackageFromSources(const std::vector<FirmwareInstallSource> & sources, FirmwareVersionFormat & out_firmware)
+{
+    out_firmware = {};
+
+    if (sources.empty() || !ContainsSystemUpdateMeta(sources))
+    {
+        return false;
+    }
+
+    for (const FirmwareInstallSource & source : sources)
+    {
+        const FileSys::NCA nca(source.file);
+        if (nca.GetStatus() != LoaderResultStatus::Success)
+        {
+            continue;
+        }
+        if (nca.GetTitleId() != FirmwareVersionSystemDataId || nca.GetType() != FileSys::NCAContentType::Data)
+        {
+            continue;
+        }
+
+        const FileSys::VirtualFile romfs_file = nca.RomFS();
+        if (romfs_file == nullptr)
+        {
+            continue;
+        }
+
+        const FileSys::VirtualDir romfs = ExtractRomFS(romfs_file);
+        if (romfs == nullptr)
+        {
+            continue;
+        }
+
+        const FileSys::VirtualFile version_file = romfs->GetFile("file");
+        if (version_file == nullptr)
+        {
+            continue;
+        }
+
+        const uint64_t bytes_read = version_file->ReadBytes(reinterpret_cast<uint8_t *>(&out_firmware), sizeof(out_firmware), 0);
+        if (bytes_read == sizeof(out_firmware))
+        {
+            return true;
+        }
+    }
+
     return false;
 }
 
@@ -225,38 +344,44 @@ void CollectFirmwareSourcesFromPath(const std::filesystem::path & path, const Fi
     }
 }
 
-FirmwareInstallResult InstallFirmwareFilesToRegistered(::FileSystemController & fs_controller, const std::vector<FirmwareInstallSource> & sources)
+bool InstallFirmwareFilesToRegistered(::FileSystemController & fs_controller, const std::vector<FirmwareInstallSource> & sources)
 {
     if (sources.empty())
     {
-        return FirmwareInstallResult::NoNCAsFound;
+        g_notify->DisplayError("No firmware NCAs were found in the selected source.", "Firmware install failed");
+        return false;
     }
 
     const FileSys::VirtualDir sys_content = fs_controller.GetSystemNANDContentDirectory();
     if (!sys_content)
     {
-        return FirmwareInstallResult::SystemNandUnavailable;
+        g_notify->DisplayError("System NAND is not available. Ensure the NAND data directory exists and the emulator initialized successfully.","Firmware install failed");
+        return false;
     }
     if (!sys_content->IsWritable())
     {
-        return FirmwareInstallResult::NotWritable;
+        g_notify->DisplayError("System NAND content is not writable.", "Firmware install failed");
+        return false;
     }
     if (!sys_content->CleanSubdirectoryRecursive("registered"))
     {
-        return FirmwareInstallResult::FailedClearRegistered;
+        g_notify->DisplayError("Could not clear the registered firmware folder before copying new files.", "Firmware install failed");
+        return false;
     }
 
     const FileSys::VirtualDir registered = sys_content->GetDirectoryRelative("registered");
     if (!registered)
     {
-        return FirmwareInstallResult::FailedClearRegistered;
+        g_notify->DisplayError("Could not clear the registered firmware folder before copying new files.", "Firmware install failed");
+        return false;
     }
 
     for (const FirmwareInstallSource & source : sources)
     {
         if (!source.file)
         {
-            return FirmwareInstallResult::FailedCopy;
+            g_notify->DisplayError("Copying one or more firmware files failed. See the log for details.", "Firmware install failed");
+            return false;
         }
 
         const std::string filename = source.registered_name.empty() ? GetRegisteredNcaFilename(source.file->GetName()) : source.registered_name;
@@ -264,11 +389,12 @@ FirmwareInstallResult InstallFirmwareFilesToRegistered(::FileSystemController & 
         if (!dst_file || !FileSys::VfsRawCopy(source.file, dst_file))
         {
             LOG_ERROR(Core, "Firmware install: copy failed for {}", filename);
-            return FirmwareInstallResult::FailedCopy;
+            g_notify->DisplayError("Copying one or more firmware files failed. See the log for details.", "Firmware install failed");
+            return false;
         }
     }
 
-    return FirmwareInstallResult::Success;
+    return true;
 }
 
 bool HasSupportedFileExtension(const char * fileName)
@@ -276,7 +402,7 @@ bool HasSupportedFileExtension(const char * fileName)
     static const char * supported_extensions[] = {
         "nro",
         "dxci",
-        "dnsp"
+        "dnsp",
     };
 
     std::string ext = Path(fileName).GetExtension();
@@ -336,6 +462,11 @@ struct Systemloader::Impl
     {
         m_appLoader.reset();
     }
+
+    bool QueryFirmwarePackage(const char * utf8_path, FirmwareVersionFormat * out_firmware);
+    bool InstallFirmwareFromFolder(const char * utf8_folder_path);
+    bool InstallFirmwareFromFile(const char * utf8_file_path);
+    void PrepareFirmwareForLoad(const char * utf8_path);
 
     FileSys::VirtualFile m_file;
     std::shared_ptr<Loader::AppLoader> m_appLoader;
@@ -398,6 +529,12 @@ bool Systemloader::SelectAndLoad(void * parentWindow)
 
 bool Systemloader::LoadRom(const char * fileName)
 {
+    if (fileName == nullptr || fileName[0] == '\0')
+    {
+        return false;
+    }
+    
+    impl->PrepareFirmwareForLoad(fileName);
     g_settings->SetInt(NXCoreSetting::EmulationState, (int32_t)EmulationState::LoadingRom);
     impl->m_file = Core::GetGameFileFromPath(impl->m_virtualFilesystem, fileName);
     impl->m_appLoader = Loader::GetLoader(*this, impl->m_file, 0, 0);
@@ -638,17 +775,19 @@ IManualContentProvider & Systemloader::ManualContentProvider()
     return *(impl->m_manualContentProvider.get());
 }
 
-FirmwareInstallResult Systemloader::InstallFirmwareFromFolder(const char * utf8_folder_path)
+bool Systemloader::Impl::InstallFirmwareFromFolder(const char * utf8_folder_path)
 {
     if (utf8_folder_path == nullptr || utf8_folder_path[0] == '\0')
     {
-        return FirmwareInstallResult::InvalidArgument;
+        g_notify->DisplayError("Invalid path.", "Firmware install failed");
+        return false;
     }
 
     const std::filesystem::path source_folder(utf8_folder_path);
     if (!Common::FS::IsDir(source_folder))
     {
-        return FirmwareInstallResult::SourceNotDirectory;
+        g_notify->DisplayError("The selected path is not a directory.", "Firmware install failed");
+        return false;
     }
 
     std::vector<std::filesystem::path> nca_paths;
@@ -668,7 +807,8 @@ FirmwareInstallResult Systemloader::InstallFirmwareFromFolder(const char * utf8_
 
     if (nca_paths.empty())
     {
-        return FirmwareInstallResult::NoNCAsFound;
+        g_notify->DisplayError("No firmware NCAs were found in the selected source.", "Firmware install failed");
+        return false;
     }
 
     std::vector<FirmwareInstallSource> sources;
@@ -676,51 +816,54 @@ FirmwareInstallResult Systemloader::InstallFirmwareFromFolder(const char * utf8_
     for (const std::filesystem::path & src_path : nca_paths)
     {
         const std::string path_utf8 = src_path.generic_string();
-        const FileSys::VirtualFile src_file = impl->m_virtualFilesystem->OpenFile(path_utf8, VirtualFileOpenMode::Read);
+        const FileSys::VirtualFile src_file = m_virtualFilesystem->OpenFile(path_utf8, VirtualFileOpenMode::Read);
         if (!src_file)
         {
             LOG_ERROR(Core, "Firmware install: could not open source file {}", path_utf8);
-            return FirmwareInstallResult::FailedCopy;
+            g_notify->DisplayError("Copying one or more firmware files failed. See the log for details.", "Firmware install failed");
+            return false;
         }
         sources.push_back({src_file, GetRegisteredNcaFilename(src_path.filename().string())});
     }
 
-    ::FileSystemController & fs_controller = impl->m_fsController;
-    const FirmwareInstallResult result = InstallFirmwareFilesToRegistered(fs_controller, sources);
-    if (result != FirmwareInstallResult::Success)
+    if (!InstallFirmwareFilesToRegistered(m_fsController, sources))
     {
-        return result;
+        return false;
     }
 
-    fs_controller.CreateFactories(*impl->m_virtualFilesystem, true);
+    m_fsController.CreateFactories(*m_virtualFilesystem, true);
     LOG_INFO(Core, "Firmware install: copied {} .dnca file(s) as .nca into system NAND registered storage", nca_paths.size());
-    return FirmwareInstallResult::Success;
+    return true;
 }
 
-FirmwareInstallResult InstallFirmwareFromDxciFile(const FileSys::VirtualFilesystem & vfs, ::FileSystemController & fs_controller, const std::filesystem::path & source_file)
+bool InstallFirmwareFromDxciFile(const FileSys::VirtualFilesystem & vfs, ::FileSystemController & fs_controller, const std::filesystem::path & source_file)
 {
     const std::string path_utf8 = source_file.generic_string();
     const FileSys::VirtualFile file = vfs->OpenFile(path_utf8, VirtualFileOpenMode::Read);
     if (!file)
     {
-        return FirmwareInstallResult::SourceNotFound;
+        g_notify->DisplayError("The selected file could not be found or opened.", "Firmware install failed");
+        return false;
     }
 
     FileSys::XCI xci(file);
     if (xci.GetStatus() != LoaderResultStatus::Success)
     {
-        return FirmwareInstallResult::InvalidDxci;
+        g_notify->DisplayError("The selected file is not a valid DXCI image.", "Firmware install failed");
+        return false;
     }
 
     const FileSys::VirtualDir update = xci.GetUpdatePartition();
     if (update == nullptr)
     {
-        return FirmwareInstallResult::UpdatePartitionNotFound;
+        g_notify->DisplayError("No firmware update partition was found in that DXCI file.", "Firmware install failed");
+        return false;
     }
 
     if (xci.GetSystemUpdateVersion() == 0)
     {
-        return FirmwareInstallResult::NoNCAsFound;
+        g_notify->DisplayError("No firmware NCAs were found in the selected source.", "Firmware install failed");
+        return false;
     }
 
     std::vector<FirmwareInstallSource> sources;
@@ -736,25 +879,26 @@ FirmwareInstallResult InstallFirmwareFromDxciFile(const FileSys::VirtualFilesyst
 
     if (sources.empty())
     {
-        return FirmwareInstallResult::NoNCAsFound;
+        g_notify->DisplayError("No firmware NCAs were found in the selected source.", "Firmware install failed");
+        return false;
     }
 
-    const FirmwareInstallResult result = InstallFirmwareFilesToRegistered(fs_controller, sources);
-    if (result != FirmwareInstallResult::Success)
+    if (!InstallFirmwareFilesToRegistered(fs_controller, sources))
     {
-        return result;
+        return false;
     }
 
     LOG_INFO(Core, "Firmware install: copied {} NCA(s) from DXCI update partition into system NAND registered storage", sources.size());
-    return FirmwareInstallResult::Success;
+    return true;
 }
 
-FirmwareInstallResult InstallFirmwareFromZipFile(const FileSys::VirtualFilesystem & vfs, ::FileSystemController & fs_controller, const std::filesystem::path & source_file)
+bool InstallFirmwareFromZipFile(const FileSys::VirtualFilesystem & vfs, ::FileSystemController & fs_controller, const std::filesystem::path & source_file)
 {
     const std::filesystem::path extract_directory = CreateFirmwareExtractDirectory();
     if (extract_directory.empty())
     {
-        return FirmwareInstallResult::InvalidZip;
+        g_notify->DisplayError("The selected file is not a valid firmware ZIP archive.", "Firmware install failed");
+        return false;
     }
 
     struct ExtractDirectoryCleanup
@@ -772,61 +916,321 @@ FirmwareInstallResult InstallFirmwareFromZipFile(const FileSys::VirtualFilesyste
 
     if (!ExtractFirmwareZipToDirectory(source_file, extract_directory))
     {
-        return FirmwareInstallResult::InvalidZip;
+        g_notify->DisplayError("The selected file is not a valid firmware ZIP archive.", "Firmware install failed");
+        return false;
     }
 
     std::vector<FirmwareInstallSource> sources;
     CollectFirmwareSourcesFromPath(extract_directory, vfs, sources);
     if (sources.empty() || !ContainsSystemUpdateMeta(sources))
     {
-        return FirmwareInstallResult::NoNCAsFound;
+        g_notify->DisplayError("No firmware NCAs were found in the selected source.", "Firmware install failed");
+        return false;
     }
 
-    const FirmwareInstallResult result = InstallFirmwareFilesToRegistered(fs_controller, sources);
-    if (result != FirmwareInstallResult::Success)
+    if (!InstallFirmwareFilesToRegistered(fs_controller, sources))
     {
-        return result;
+        return false;
     }
 
     LOG_INFO(Core, "Firmware install: copied {} NCA(s) from ZIP into system NAND registered storage", sources.size());
-    return FirmwareInstallResult::Success;
+    return true;
 }
 
-FirmwareInstallResult Systemloader::InstallFirmwareFromFile(const char * utf8_file_path)
+bool Systemloader::Impl::InstallFirmwareFromFile(const char * utf8_file_path)
 {
     if (utf8_file_path == nullptr || utf8_file_path[0] == '\0')
     {
-        return FirmwareInstallResult::InvalidArgument;
+        g_notify->DisplayError("Invalid path.", "Firmware install failed");
+        return false;
     }
 
     const std::filesystem::path source_file(utf8_file_path);
     if (!Common::FS::IsFile(source_file))
     {
-        return FirmwareInstallResult::SourceNotFound;
+        g_notify->DisplayError("The selected file could not be found or opened.", "Firmware install failed");
+        return false;
     }
 
-    const std::string extension = ToLowerAscii(source_file.extension().string());
-    ::FileSystemController & fs_controller = impl->m_fsController;
-    FirmwareInstallResult result = FirmwareInstallResult::InvalidArgument;
-
-    if (extension == ".dxci")
+    bool installed = false;
+    const FileSys::VirtualFile file = m_virtualFilesystem->OpenFile(source_file.generic_string(), VirtualFileOpenMode::Read);
+    if (file)
     {
-        result = InstallFirmwareFromDxciFile(impl->m_virtualFilesystem, fs_controller, source_file);
+        FileSys::XCI xci(file);
+        if (xci.GetStatus() == LoaderResultStatus::Success)
+        {
+            installed = InstallFirmwareFromDxciFile(m_virtualFilesystem, m_fsController, source_file);
+        }
     }
-    else if (extension == ".zip")
+
+    if (!installed && ToLowerAscii(source_file.extension().string()) == ".zip")
     {
-        result = InstallFirmwareFromZipFile(impl->m_virtualFilesystem, fs_controller, source_file);
+        installed = InstallFirmwareFromZipFile(m_virtualFilesystem, m_fsController, source_file);
+    }
+
+    if (!installed)
+    {
+        g_notify->DisplayError("Invalid path.", "Firmware install failed");
+        return false;
+    }
+
+    m_fsController.CreateFactories(*m_virtualFilesystem, true);
+    return true;
+}
+
+bool Systemloader::Impl::QueryFirmwarePackage(const char * utf8_path, FirmwareVersionFormat * out_firmware)
+{
+    if (utf8_path == nullptr || utf8_path[0] == '\0' || out_firmware == nullptr)
+    {
+        return false;
+    }
+
+    *out_firmware = {};
+
+    const std::filesystem::path path(utf8_path);
+    std::error_code ec;
+    if (!std::filesystem::exists(path, ec))
+    {
+        return false;
+    }
+
+    if (!std::filesystem::is_regular_file(path, ec))
+    {
+        if (std::filesystem::is_directory(path, ec))
+        {
+            std::vector<std::filesystem::path> nca_paths;
+            for (const std::filesystem::directory_entry & entry : std::filesystem::directory_iterator(path))
+            {
+                if (!entry.is_regular_file())
+                {
+                    continue;
+                }
+                std::string ext = entry.path().extension().string();
+                std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                if (ext == ".dnca")
+                {
+                    nca_paths.push_back(entry.path());
+                }
+            }
+
+            if (nca_paths.empty())
+            {
+                return false;
+            }
+
+            std::vector<FirmwareInstallSource> sources;
+            sources.reserve(nca_paths.size());
+            for (const std::filesystem::path & src_path : nca_paths)
+            {
+                const FileSys::VirtualFile src_file = m_virtualFilesystem->OpenFile(src_path.generic_string(), VirtualFileOpenMode::Read);
+                if (!src_file)
+                {
+                    return false;
+                }
+                sources.push_back({src_file, GetRegisteredNcaFilename(src_path.filename().string())});
+            }
+
+            return QueryFirmwarePackageFromSources(sources, *out_firmware);
+        }
+        return false;
+    }
+
+    const FileSys::VirtualFile file = m_virtualFilesystem->OpenFile(path.generic_string(), VirtualFileOpenMode::Read);
+    if (file)
+    {
+        std::vector<FirmwareInstallSource> sources;
+
+        FileSys::XCI xci(file);
+        if (xci.GetStatus() == LoaderResultStatus::Success)
+        {
+            const FileSys::VirtualDir update = xci.GetUpdatePartition();
+            if (update != nullptr && xci.GetSystemUpdateVersion() != 0)
+            {
+                for (const FileSys::VirtualFile & update_file : update->GetFiles())
+                {
+                    const FileSys::NCA nca(update_file);
+                    if (nca.GetStatus() != LoaderResultStatus::Success)
+                    {
+                        continue;
+                    }
+                    sources.push_back({update_file, GetRegisteredNcaFilename(update_file->GetName())});
+                }
+            }
+        }
+
+        if (!sources.empty())
+        {
+            return QueryFirmwarePackageFromSources(sources, *out_firmware);
+        }
+    }
+
+    if (ToLowerAscii(path.extension().string()) == ".zip")
+    {
+        const std::filesystem::path extract_directory = CreateFirmwareExtractDirectory();
+        if (extract_directory.empty())
+        {
+            return false;
+        }
+
+        struct ExtractDirectoryCleanup
+        {
+            std::filesystem::path path;
+            ~ExtractDirectoryCleanup()
+            {
+                if (!path.empty())
+                {
+                    std::error_code ec;
+                    std::filesystem::remove_all(path, ec);
+                }
+            }
+        } cleanup{extract_directory};
+
+        if (!ExtractFirmwareZipToDirectory(path, extract_directory))
+        {
+            return false;
+        }
+
+        std::vector<FirmwareInstallSource> sources;
+        CollectFirmwareSourcesFromPath(extract_directory, m_virtualFilesystem, sources);
+        return QueryFirmwarePackageFromSources(sources, *out_firmware);
+    }
+
+    return false;
+}
+
+bool ConfirmFirmwareInstallPrompt(const std::string & package_version, const std::string & current_version)
+{
+    std::string message = fmt::format("Install firmware {} from this package?", package_version);
+    if (!current_version.empty())
+    {
+        message += fmt::format("\n\nCurrent firmware: {}.\nThis will replace the installed firmware.", current_version);
+    }
+    message += "\n\nContinue?";
+
+    return g_notify->Query(message.c_str(), "Install firmware") == NotificationResponse::Yes;
+}
+
+uint32_t Systemloader::GetInstalledFirmwareDisplayVersion(char * buffer, uint32_t buffer_size) const
+{
+    if (buffer == nullptr || buffer_size == 0)
+    {
+        return 0;
+    }
+
+    FirmwareVersionFormat firmware{};
+    if (!ReadInstalledFirmwareVersionRaw(impl->m_fsController, firmware))
+    {
+        buffer[0] = '\0';
+        return 0;
+    }
+
+    const std::string version = GetFirmwareDisplayVersion(firmware);
+    if (version.empty())
+    {
+        buffer[0] = '\0';
+        return 0;
+    }
+
+    const uint32_t copy_len = static_cast<uint32_t>(std::min(version.size(), static_cast<size_t>(buffer_size - 1)));
+    std::memcpy(buffer, version.data(), copy_len);
+    buffer[copy_len] = '\0';
+    return copy_len;
+}
+
+void Systemloader::Impl::PrepareFirmwareForLoad(const char * utf8_path)
+{
+    if (utf8_path == nullptr || utf8_path[0] == '\0')
+    {
+        return;
+    }
+
+    FirmwareVersionFormat package_firmware{};
+    if (!QueryFirmwarePackage(utf8_path, &package_firmware))
+    {
+        return;
+    }
+
+    FirmwareVersionFormat installed_firmware{};
+    if (!ReadInstalledFirmwareVersionRaw(m_fsController, installed_firmware))
+    {
+        const std::string package_version = GetFirmwareDisplayVersion(package_firmware);
+        const std::string message = fmt::format(
+            "No system firmware is installed.\n\nThis game contains firmware {}.\n\nDo you want to install it now?", package_version);
+        if (g_notify->Query(message.c_str(), "Install firmware") != NotificationResponse::Yes)
+        {
+            return;
+        }
+    }
+    else if (!IsFirmwareVersionNewer(package_firmware, installed_firmware))
+    {
+        return;
     }
     else
     {
-        return FirmwareInstallResult::InvalidArgument;
+        const std::string package_version = GetFirmwareDisplayVersion(package_firmware);
+        const std::string installed_version = GetFirmwareDisplayVersion(installed_firmware);
+        const std::string message = fmt::format(
+            "Installed firmware is {}.\n\nThis game contains firmware {}.\n\nDo you want to upgrade?",
+            installed_version, package_version);
+        if (g_notify->Query(message.c_str(), "Install firmware") != NotificationResponse::Yes)
+        {
+            return;
+        }
     }
 
-    if (result != FirmwareInstallResult::Success)
+    if (InstallFirmwareFromFile(utf8_path))
     {
-        return result;
+        g_notify->DisplayError("Firmware installed successfully.", "Firmware installed");
+    }
+}
+
+bool Systemloader::InstallFirmwarePackage(const char * utf8_path)
+{
+    if (utf8_path == nullptr || utf8_path[0] == '\0')
+    {
+        g_notify->DisplayError("Invalid path.", "Firmware install failed");
+        return false;
     }
 
-    fs_controller.CreateFactories(*impl->m_virtualFilesystem, true);
-    return FirmwareInstallResult::Success;
+    FirmwareVersionFormat package_firmware{};
+    if (!impl->QueryFirmwarePackage(utf8_path, &package_firmware))
+    {
+        g_notify->DisplayError("The selected source does not contain a valid firmware package.", "Firmware install failed");
+        return false;
+    }
+
+    FirmwareVersionFormat installed_firmware{};
+    const bool has_installed_firmware = ReadInstalledFirmwareVersionRaw(impl->m_fsController, installed_firmware);
+    if (has_installed_firmware && !IsFirmwareVersionNewer(package_firmware, installed_firmware))
+    {
+        const std::string package_version = GetFirmwareDisplayVersion(package_firmware);
+        const std::string current_version = GetFirmwareDisplayVersion(installed_firmware);
+        if (!ConfirmFirmwareInstallPrompt(package_version, current_version))
+        {
+            return false;
+        }
+    }
+
+    std::error_code ec;
+    const std::filesystem::path path(utf8_path);
+    bool installed = false;
+    if (std::filesystem::is_directory(path, ec))
+    {
+        installed = impl->InstallFirmwareFromFolder(utf8_path);
+    }
+    else if (std::filesystem::is_regular_file(path, ec))
+    {
+        installed = impl->InstallFirmwareFromFile(utf8_path);
+    }
+    else
+    {
+        g_notify->DisplayError("Invalid path.", "Firmware install failed");
+        return false;
+    }
+
+    if (installed)
+    {
+        g_notify->DisplayError("Firmware installed successfully.", "Firmware installed");
+    }
+    return installed;
 }
