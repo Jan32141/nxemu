@@ -395,9 +395,6 @@
     <ClCompile Include="settings_common.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="settings_input.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="spin_lock.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

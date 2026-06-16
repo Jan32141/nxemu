@@ -10,27 +10,6 @@
 #include <nxemu-module-spec/operating_system.h>
 
 namespace InputSettings {
-namespace NativeButton {
-
-constexpr int BUTTON_HID_BEGIN = (int)NativeButtonValues::A;
-constexpr int BUTTON_NS_BEGIN = (int)NativeButtonValues::Home;
-
-constexpr int BUTTON_HID_END = BUTTON_NS_BEGIN;
-constexpr int BUTTON_NS_END = (int)NativeButtonValues::NumButtons;
-
-constexpr int NUM_BUTTONS_HID = BUTTON_HID_END - BUTTON_HID_BEGIN;
-constexpr int NUM_BUTTONS_NS = BUTTON_NS_END - BUTTON_NS_BEGIN;
-
-extern const std::array<const char*, (int)NativeButtonValues::NumButtons> mapping;
-
-} // namespace NativeButton
-
-namespace NativeAnalog {
-constexpr int STICK_HID_BEGIN = (int)NativeAnalogValues::LStick;
-constexpr int STICK_HID_END = (int)NativeAnalogValues::NumAnalogs;
-
-extern const std::array<const char*, (size_t)NativeAnalogValues::NumAnalogs> mapping;
-} // namespace NativeAnalog
 
 namespace NativeTrigger {
 enum Values : int {
@@ -39,33 +18,7 @@ enum Values : int {
 
     NumTriggers,
 };
-
-constexpr int TRIGGER_HID_BEGIN = LTrigger;
-constexpr int TRIGGER_HID_END = NumTriggers;
 } // namespace NativeTrigger
-
-namespace NativeVibration {
-enum Values : int {
-    LeftVibrationDevice,
-    RightVibrationDevice,
-
-    NumVibrations,
-};
-
-constexpr int VIBRATION_HID_BEGIN = LeftVibrationDevice;
-constexpr int VIBRATION_HID_END = NumVibrations;
-constexpr int NUM_VIBRATIONS_HID = NumVibrations;
-
-extern const std::array<const char*, NumVibrations> mapping;
-}; // namespace NativeVibration
-
-namespace NativeMotion {
-constexpr int MOTION_HID_BEGIN = (int)NativeMotionValues::MotionLeft;
-constexpr int MOTION_HID_END = (int)NativeMotionValues::NumMotions;
-constexpr int NUM_MOTIONS_HID = (int)NativeMotionValues::NumMotions;
-
-extern const std::array<const char*, (size_t)NativeMotionValues::NumMotions> mapping;
-} // namespace NativeMotion
 
 namespace NativeMouseButton {
 enum Values {
@@ -77,12 +30,6 @@ enum Values {
 
     NumMouseButtons,
 };
-
-constexpr int MOUSE_HID_BEGIN = Left;
-constexpr int MOUSE_HID_END = NumMouseButtons;
-constexpr int NUM_MOUSE_HID = NumMouseButtons;
-
-extern const std::array<const char*, NumMouseButtons> mapping;
 } // namespace NativeMouseButton
 
 namespace NativeMouseWheel {
@@ -92,8 +39,6 @@ enum Values {
 
     NumMouseWheels,
 };
-
-extern const std::array<const char*, NumMouseWheels> mapping;
 } // namespace NativeMouseWheel
 
 namespace NativeKeyboard {
@@ -303,25 +248,12 @@ enum Modifiers {
     NumKeyboardMods,
 };
 
-constexpr int KEYBOARD_KEYS_HID_BEGIN = None;
-constexpr int KEYBOARD_KEYS_HID_END = NumKeyboardKeys;
-constexpr int NUM_KEYBOARD_KEYS_HID = NumKeyboardKeys;
-
-constexpr int KEYBOARD_MODS_HID_BEGIN = LeftControl;
-constexpr int KEYBOARD_MODS_HID_END = NumKeyboardMods;
-constexpr int NUM_KEYBOARD_MODS_HID = NumKeyboardMods;
-
 } // namespace NativeKeyboard
 
 using AnalogsRaw = std::array<std::string, (size_t)NativeAnalogValues::NumAnalogs>;
 using ButtonsRaw = std::array<std::string, (size_t)NativeButtonValues::NumButtons>;
 using MotionsRaw = std::array<std::string, (size_t)NativeMotionValues::NumMotions>;
 using RingconRaw = std::string;
-
-constexpr u32 JOYCON_BODY_NEON_RED = 0xFF3C28;
-constexpr u32 JOYCON_BUTTONS_NEON_RED = 0x1E0A0A;
-constexpr u32 JOYCON_BODY_NEON_BLUE = 0x0AB9E6;
-constexpr u32 JOYCON_BUTTONS_NEON_BLUE = 0x001E1E;
 
 enum class ControllerType {
     ProController,
@@ -367,4 +299,4 @@ struct TouchscreenInput {
     u32 diameter_y;
     u32 rotation_angle;
 };
-} // namespace Settings
+} // namespace InputSettings

@@ -7,7 +7,7 @@
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/param_package.h"
 #include "yuzu_common/polyfill_thread.h"
-#include "yuzu_common/settings_input.h"
+#include <nxemu-module-spec/operating_system.h>
 #include "yuzu_common/thread.h"
 #include "yuzu_input_common/drivers/gc_adapter.h"
 

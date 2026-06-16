@@ -9,7 +9,6 @@
 #include "os_settings.h"
 #include "yuzu_audio_core/sink/sink_details.h"
 #include "yuzu_common/settings.h"
-#include "yuzu_common/settings_input.h"
 #include "yuzu_hid_core/frontend/emulated_controller.h"
 #include "yuzu_hid_core/hid_core.h"
 #include "yuzu_input_common/drivers/keyboard.h"

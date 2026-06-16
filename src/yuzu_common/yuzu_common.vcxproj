@@ -159,7 +159,6 @@
     <ClCompile Include="param_package.cpp" />
     <ClCompile Include="settings.cpp" />
     <ClCompile Include="settings_common.cpp" />
-    <ClCompile Include="settings_input.cpp" />
     <ClCompile Include="spin_lock.cpp" />
     <ClCompile Include="stb.cpp" />
     <ClCompile Include="steady_clock.cpp" />

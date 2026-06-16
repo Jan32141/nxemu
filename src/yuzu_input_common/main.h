@@ -13,10 +13,6 @@ namespace Common {
 class ParamPackage;
 }
 
-namespace InputSettings::NativeButton {
-enum Values : int;
-}
-
 namespace InputCommon {
 class Android;
 class Camera;

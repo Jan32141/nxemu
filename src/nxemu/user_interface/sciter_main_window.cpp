@@ -24,7 +24,6 @@
 #include <yuzu_common/fs/filesystem_interfaces.h>
 #include <yuzu_common/fs/path_util.h>
 #include <yuzu_common/settings.h>
-#include <yuzu_common/settings_input.h>
 
 #include <Windows.h>
 #include <array>
