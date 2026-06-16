@@ -107,7 +107,6 @@
     <ClInclude Include="settings.h" />
     <ClInclude Include="settings_common.h" />
     <ClInclude Include="settings_enums.h" />
-    <ClInclude Include="settings_input.h" />
     <ClInclude Include="settings_setting.h" />
     <ClInclude Include="slot_vector.h" />
     <ClInclude Include="socket_types.h" />

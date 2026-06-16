@@ -967,6 +967,7 @@
     <ClInclude Include="nxemu-os.h" />
     <ClInclude Include="os_manager.h" />
     <ClInclude Include="os_settings.h" />
+    <ClInclude Include="player_input.h" />
     <ClInclude Include="os_settings_identifiers.h" />
   </ItemGroup>
   <ItemGroup>

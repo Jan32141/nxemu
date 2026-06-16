@@ -51,7 +51,7 @@ namespace
         OsSetting(const char * id, const char * path, float * val, float defaultValue);
         OsSetting(const char * id, const char * path, uint32_t * val, uint32_t defaultValue);
         OsSetting(const char * id, const char * path, std::string * val, const char * defaultValue);
-        OsSetting(const char * id, const char * path, InputSettings::ControllerType * val, InputSettings::ControllerType defaultValue);
+        OsSetting(const char * id, const char * path, ControllerType * val, ControllerType defaultValue);
         OsSetting(const char * id, const char * path, Settings::Setting<s32> * val);
         OsSetting(const char * id, const char * path, Settings::SwitchableSetting<u32> * val);
         OsSetting(const char * id, const char * path, Settings::SwitchableSetting<s64, true> * val);
@@ -74,7 +74,7 @@ namespace
             uint32_t * uint32Value;
             float * floatValue;
             std::string * stringValue;
-            InputSettings::ControllerType * controllerType;
+            ControllerType * controllerType;
             Settings::Setting<s32> * s32Setting;
             Settings::SwitchableSetting<u32> * u32Switchable;
             Settings::SwitchableSetting<s64, true> * s64Switchable;
@@ -85,13 +85,13 @@ namespace
             uint32_t uint32Value;
             float floatValue;
             const char * sringValue;
-            InputSettings::ControllerType controllerType;
+            ControllerType controllerType;
         } defaultValue;
     };
 
     static OsSetting settings[] = {
         { nullptr, "controller\\player_0\\Connected", &osSettings.players.GetValue(true)[0].connected, true },
-        { nullptr, "controller\\player_0\\ControllerType", &osSettings.players.GetValue(true)[0].controller_type, InputSettings::ControllerType::ProController },
+        { nullptr, "controller\\player_0\\ControllerType", &osSettings.players.GetValue(true)[0].controller_type, ControllerType::ProController },
         { nullptr, "controller\\player_0\\Button\\A", &osSettings.players.GetValue(true)[0].buttons[(size_t)NativeButtonValues::A], "engine:keyboard,code:67,toggle:0" },
         { nullptr, "controller\\player_0\\Button\\B", &osSettings.players.GetValue(true)[0].buttons[(size_t)NativeButtonValues::B], "engine:keyboard,code:88,toggle:0" },
         { nullptr, "controller\\player_0\\Button\\X", &osSettings.players.GetValue(true)[0].buttons[(size_t)NativeButtonValues::X], "engine:keyboard,code:86,toggle:0" },
@@ -128,7 +128,7 @@ namespace
         { nullptr, "controller\\player_0\\Vibration\\UseSystem", &osSettings.players.GetValue(true)[0].use_system_vibrator, false },
 
         { nullptr, "controller\\player_1\\Connected", &osSettings.players.GetValue(true)[1].connected, false },
-        { nullptr, "controller\\player_1\\ControllerType", &osSettings.players.GetValue(true)[1].controller_type, InputSettings::ControllerType::ProController },
+        { nullptr, "controller\\player_1\\ControllerType", &osSettings.players.GetValue(true)[1].controller_type, ControllerType::ProController },
         { nullptr, "controller\\player_1\\Button\\A", &osSettings.players.GetValue(true)[1].buttons[(size_t)NativeButtonValues::A], "" },
         { nullptr, "controller\\player_1\\Button\\B", &osSettings.players.GetValue(true)[1].buttons[(size_t)NativeButtonValues::B], "" },
         { nullptr, "controller\\player_1\\Button\\X", &osSettings.players.GetValue(true)[1].buttons[(size_t)NativeButtonValues::X], "" },
@@ -165,7 +165,7 @@ namespace
         { nullptr, "controller\\player_1\\Vibration\\UseSystem", &osSettings.players.GetValue(true)[1].use_system_vibrator, false },
 
         {nullptr, "controller\\player_2\\Connected", &osSettings.players.GetValue(true)[2].connected, false},
-        {nullptr, "controller\\player_2\\ControllerType", &osSettings.players.GetValue(true)[2].controller_type, InputSettings::ControllerType::ProController},
+        {nullptr, "controller\\player_2\\ControllerType", &osSettings.players.GetValue(true)[2].controller_type, ControllerType::ProController},
         {nullptr, "controller\\player_2\\Button\\A", &osSettings.players.GetValue(true)[2].buttons[(size_t)NativeButtonValues::A], ""},
         {nullptr, "controller\\player_2\\Button\\B", &osSettings.players.GetValue(true)[2].buttons[(size_t)NativeButtonValues::B], ""},
         {nullptr, "controller\\player_2\\Button\\X", &osSettings.players.GetValue(true)[2].buttons[(size_t)NativeButtonValues::X], ""},
@@ -202,7 +202,7 @@ namespace
         {nullptr, "controller\\player_2\\Vibration\\UseSystem", &osSettings.players.GetValue(true)[2].use_system_vibrator, false},
 
         {nullptr, "controller\\player_3\\Connected", &osSettings.players.GetValue(true)[3].connected, false},
-        {nullptr, "controller\\player_3\\ControllerType", &osSettings.players.GetValue(true)[3].controller_type, InputSettings::ControllerType::ProController},
+        {nullptr, "controller\\player_3\\ControllerType", &osSettings.players.GetValue(true)[3].controller_type, ControllerType::ProController},
         {nullptr, "controller\\player_3\\Button\\A", &osSettings.players.GetValue(true)[3].buttons[(size_t)NativeButtonValues::A], ""},
         {nullptr, "controller\\player_3\\Button\\B", &osSettings.players.GetValue(true)[3].buttons[(size_t)NativeButtonValues::B], ""},
         {nullptr, "controller\\player_3\\Button\\X", &osSettings.players.GetValue(true)[3].buttons[(size_t)NativeButtonValues::X], ""},
@@ -239,7 +239,7 @@ namespace
         {nullptr, "controller\\player_3\\Vibration\\UseSystem", &osSettings.players.GetValue(true)[3].use_system_vibrator, false},
 
         {nullptr, "controller\\player_4\\Connected", &osSettings.players.GetValue(true)[4].connected, false},
-        {nullptr, "controller\\player_4\\ControllerType", &osSettings.players.GetValue(true)[4].controller_type, InputSettings::ControllerType::ProController},
+        {nullptr, "controller\\player_4\\ControllerType", &osSettings.players.GetValue(true)[4].controller_type, ControllerType::ProController},
         {nullptr, "controller\\player_4\\Button\\A", &osSettings.players.GetValue(true)[4].buttons[(size_t)NativeButtonValues::A], ""},
         {nullptr, "controller\\player_4\\Button\\B", &osSettings.players.GetValue(true)[4].buttons[(size_t)NativeButtonValues::B], ""},
         {nullptr, "controller\\player_4\\Button\\X", &osSettings.players.GetValue(true)[4].buttons[(size_t)NativeButtonValues::X], ""},
@@ -276,7 +276,7 @@ namespace
         {nullptr, "controller\\player_4\\Vibration\\UseSystem", &osSettings.players.GetValue(true)[4].use_system_vibrator, false},
 
         {nullptr, "controller\\player_5\\Connected", &osSettings.players.GetValue(true)[5].connected, false},
-        {nullptr, "controller\\player_5\\ControllerType", &osSettings.players.GetValue(true)[5].controller_type, InputSettings::ControllerType::ProController},
+        {nullptr, "controller\\player_5\\ControllerType", &osSettings.players.GetValue(true)[5].controller_type, ControllerType::ProController},
         {nullptr, "controller\\player_5\\Button\\A", &osSettings.players.GetValue(true)[5].buttons[(size_t)NativeButtonValues::A], ""},
         {nullptr, "controller\\player_5\\Button\\B", &osSettings.players.GetValue(true)[5].buttons[(size_t)NativeButtonValues::B], ""},
         {nullptr, "controller\\player_5\\Button\\X", &osSettings.players.GetValue(true)[5].buttons[(size_t)NativeButtonValues::X], ""},
@@ -313,7 +313,7 @@ namespace
         {nullptr, "controller\\player_5\\Vibration\\UseSystem", &osSettings.players.GetValue(true)[5].use_system_vibrator, false},
 
         {nullptr, "controller\\player_6\\Connected", &osSettings.players.GetValue(true)[6].connected, false},
-        {nullptr, "controller\\player_6\\ControllerType", &osSettings.players.GetValue(true)[6].controller_type, InputSettings::ControllerType::ProController},
+        {nullptr, "controller\\player_6\\ControllerType", &osSettings.players.GetValue(true)[6].controller_type, ControllerType::ProController},
         {nullptr, "controller\\player_6\\Button\\A", &osSettings.players.GetValue(true)[6].buttons[(size_t)NativeButtonValues::A], ""},
         {nullptr, "controller\\player_6\\Button\\B", &osSettings.players.GetValue(true)[6].buttons[(size_t)NativeButtonValues::B], ""},
         {nullptr, "controller\\player_6\\Button\\X", &osSettings.players.GetValue(true)[6].buttons[(size_t)NativeButtonValues::X], ""},
@@ -350,7 +350,7 @@ namespace
         {nullptr, "controller\\player_6\\Vibration\\UseSystem", &osSettings.players.GetValue(true)[6].use_system_vibrator, false},
 
         {nullptr, "controller\\player_7\\Connected", &osSettings.players.GetValue(true)[7].connected, false},
-        {nullptr, "controller\\player_7\\ControllerType", &osSettings.players.GetValue(true)[7].controller_type, InputSettings::ControllerType::ProController},
+        {nullptr, "controller\\player_7\\ControllerType", &osSettings.players.GetValue(true)[7].controller_type, ControllerType::ProController},
         {nullptr, "controller\\player_7\\Button\\A", &osSettings.players.GetValue(true)[7].buttons[(size_t)NativeButtonValues::A], ""},
         {nullptr, "controller\\player_7\\Button\\B", &osSettings.players.GetValue(true)[7].buttons[(size_t)NativeButtonValues::B], ""},
         {nullptr, "controller\\player_7\\Button\\X", &osSettings.players.GetValue(true)[7].buttons[(size_t)NativeButtonValues::X], ""},
@@ -387,7 +387,7 @@ namespace
         {nullptr, "controller\\player_7\\Vibration\\UseSystem", &osSettings.players.GetValue(true)[7].use_system_vibrator, false},
 
         {nullptr, "controller\\player_8\\Connected", &osSettings.players.GetValue(true)[8].connected, false},
-        {nullptr, "controller\\player_8\\ControllerType", &osSettings.players.GetValue(true)[8].controller_type, InputSettings::ControllerType::ProController},
+        {nullptr, "controller\\player_8\\ControllerType", &osSettings.players.GetValue(true)[8].controller_type, ControllerType::ProController},
         {nullptr, "controller\\player_8\\Button\\A", &osSettings.players.GetValue(true)[8].buttons[(size_t)NativeButtonValues::A], ""},
         {nullptr, "controller\\player_8\\Button\\B", &osSettings.players.GetValue(true)[8].buttons[(size_t)NativeButtonValues::B], ""},
         {nullptr, "controller\\player_8\\Button\\X", &osSettings.players.GetValue(true)[8].buttons[(size_t)NativeButtonValues::X], ""},
@@ -424,7 +424,7 @@ namespace
         {nullptr, "controller\\player_8\\Vibration\\UseSystem", &osSettings.players.GetValue(true)[8].use_system_vibrator, false},
 
         {nullptr, "controller\\player_9\\Connected", &osSettings.players.GetValue(true)[9].connected, false},
-        {nullptr, "controller\\player_9\\ControllerType", &osSettings.players.GetValue(true)[9].controller_type, InputSettings::ControllerType::ProController},
+        {nullptr, "controller\\player_9\\ControllerType", &osSettings.players.GetValue(true)[9].controller_type, ControllerType::ProController},
         {nullptr, "controller\\player_9\\Button\\A", &osSettings.players.GetValue(true)[9].buttons[(size_t)NativeButtonValues::A], ""},
         {nullptr, "controller\\player_9\\Button\\B", &osSettings.players.GetValue(true)[9].buttons[(size_t)NativeButtonValues::B], ""},
         {nullptr, "controller\\player_9\\Button\\X", &osSettings.players.GetValue(true)[9].buttons[(size_t)NativeButtonValues::X], ""},
@@ -483,20 +483,20 @@ namespace
 
     // Specialization for ControllerType
     template <>
-    std::vector<std::pair<std::string, InputSettings::ControllerType>> Canonicalizations<InputSettings::ControllerType>()
+    std::vector<std::pair<std::string, ControllerType>> Canonicalizations<ControllerType>()
     {
         return {
-            {"ProController", InputSettings::ControllerType::ProController},
-            {"DualJoyconDetached", InputSettings::ControllerType::DualJoyconDetached},
-            {"LeftJoycon", InputSettings::ControllerType::LeftJoycon},
-            {"RightJoycon", InputSettings::ControllerType::RightJoycon},
-            {"Handheld", InputSettings::ControllerType::Handheld},
-            {"GameCube", InputSettings::ControllerType::GameCube},
-            {"Pokeball", InputSettings::ControllerType::Pokeball},
-            {"NES", InputSettings::ControllerType::NES},
-            {"SNES", InputSettings::ControllerType::SNES},
-            {"N64", InputSettings::ControllerType::N64},
-            {"SegaGenesis", InputSettings::ControllerType::SegaGenesis},
+            {"ProController", ControllerType::ProController},
+            {"DualJoyconDetached", ControllerType::DualJoyconDetached},
+            {"LeftJoycon", ControllerType::LeftJoycon},
+            {"RightJoycon", ControllerType::RightJoycon},
+            {"Handheld", ControllerType::Handheld},
+            {"GameCube", ControllerType::GameCube},
+            {"Pokeball", ControllerType::Pokeball},
+            {"NES", ControllerType::NES},
+            {"SNES", ControllerType::SNES},
+            {"N64", ControllerType::N64},
+            {"SegaGenesis", ControllerType::SegaGenesis},
         };
     };
 
@@ -753,7 +753,7 @@ void SetupOsSetting(void)
             case SettingType::ControllerType:
                 if (value.isString())
                 {
-                    *osSetting.setting.controllerType = ParseEnum<InputSettings::ControllerType>(value.asString());
+                    *osSetting.setting.controllerType = ParseEnum<ControllerType>(value.asString());
                 }
                 break;
             case SettingType::S32Setting:
@@ -1090,7 +1090,7 @@ namespace
         defaultValue.sringValue = defaultValue_;
     }
 
-    OsSetting::OsSetting(const char * id, const char * path, InputSettings::ControllerType * val, InputSettings::ControllerType defaultValue_) :
+    OsSetting::OsSetting(const char * id, const char * path, ControllerType * val, ControllerType defaultValue_) :
         identifier(id),
         json_path(path),
         settingType(SettingType::ControllerType)

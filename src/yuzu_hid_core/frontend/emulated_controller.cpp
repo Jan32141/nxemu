@@ -31,65 +31,65 @@ EmulatedController::EmulatedController(NpadIdType npad_id_type_) :
 
 EmulatedController::~EmulatedController() = default;
 
-NpadStyleIndex EmulatedController::MapSettingsTypeToNPad(InputSettings::ControllerType type)
+NpadStyleIndex EmulatedController::MapSettingsTypeToNPad(ControllerType type)
 {
     switch (type)
     {
-    case InputSettings::ControllerType::ProController:
+    case ControllerType::ProController:
         return NpadStyleIndex::Fullkey;
-    case InputSettings::ControllerType::DualJoyconDetached:
+    case ControllerType::DualJoyconDetached:
         return NpadStyleIndex::JoyconDual;
-    case InputSettings::ControllerType::LeftJoycon:
+    case ControllerType::LeftJoycon:
         return NpadStyleIndex::JoyconLeft;
-    case InputSettings::ControllerType::RightJoycon:
+    case ControllerType::RightJoycon:
         return NpadStyleIndex::JoyconRight;
-    case InputSettings::ControllerType::Handheld:
+    case ControllerType::Handheld:
         return NpadStyleIndex::Handheld;
-    case InputSettings::ControllerType::GameCube:
+    case ControllerType::GameCube:
         return NpadStyleIndex::GameCube;
-    case InputSettings::ControllerType::Pokeball:
+    case ControllerType::Pokeball:
         return NpadStyleIndex::Pokeball;
-    case InputSettings::ControllerType::NES:
+    case ControllerType::NES:
         return NpadStyleIndex::NES;
-    case InputSettings::ControllerType::SNES:
+    case ControllerType::SNES:
         return NpadStyleIndex::SNES;
-    case InputSettings::ControllerType::N64:
+    case ControllerType::N64:
         return NpadStyleIndex::N64;
-    case InputSettings::ControllerType::SegaGenesis:
+    case ControllerType::SegaGenesis:
         return NpadStyleIndex::SegaGenesis;
     default:
         return NpadStyleIndex::Fullkey;
     }
 }
 
-InputSettings::ControllerType EmulatedController::MapNPadToSettingsType(NpadStyleIndex type)
+ControllerType EmulatedController::MapNPadToSettingsType(NpadStyleIndex type)
 {
     switch (type)
     {
     case NpadStyleIndex::Fullkey:
-        return InputSettings::ControllerType::ProController;
+        return ControllerType::ProController;
     case NpadStyleIndex::JoyconDual:
-        return InputSettings::ControllerType::DualJoyconDetached;
+        return ControllerType::DualJoyconDetached;
     case NpadStyleIndex::JoyconLeft:
-        return InputSettings::ControllerType::LeftJoycon;
+        return ControllerType::LeftJoycon;
     case NpadStyleIndex::JoyconRight:
-        return InputSettings::ControllerType::RightJoycon;
+        return ControllerType::RightJoycon;
     case NpadStyleIndex::Handheld:
-        return InputSettings::ControllerType::Handheld;
+        return ControllerType::Handheld;
     case NpadStyleIndex::GameCube:
-        return InputSettings::ControllerType::GameCube;
+        return ControllerType::GameCube;
     case NpadStyleIndex::Pokeball:
-        return InputSettings::ControllerType::Pokeball;
+        return ControllerType::Pokeball;
     case NpadStyleIndex::NES:
-        return InputSettings::ControllerType::NES;
+        return ControllerType::NES;
     case NpadStyleIndex::SNES:
-        return InputSettings::ControllerType::SNES;
+        return ControllerType::SNES;
     case NpadStyleIndex::N64:
-        return InputSettings::ControllerType::N64;
+        return ControllerType::N64;
     case NpadStyleIndex::SegaGenesis:
-        return InputSettings::ControllerType::SegaGenesis;
+        return ControllerType::SegaGenesis;
     default:
-        return InputSettings::ControllerType::ProController;
+        return ControllerType::ProController;
     }
 }
 
@@ -1204,13 +1204,13 @@ void EmulatedController::SetTrigger(const Common::Input::CallbackStatus & callba
 
     const auto & trigger = controller.trigger_values[index];
 
-    switch (index)
+    switch ((PadTrigger)index)
     {
-    case InputSettings::NativeTrigger::LTrigger:
+    case PadTrigger::LTrigger:
         controller.gc_trigger_state.left = static_cast<s32>(trigger.analog.value * HID_TRIGGER_MAX);
         controller.npad_button_state.zl.Assign(trigger.pressed.value);
         break;
-    case InputSettings::NativeTrigger::RTrigger:
+    case PadTrigger::RTrigger:
         controller.gc_trigger_state.right = static_cast<s32>(trigger.analog.value * HID_TRIGGER_MAX);
         controller.npad_button_state.zr.Assign(trigger.pressed.value);
         break;

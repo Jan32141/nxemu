@@ -10,10 +10,10 @@
 #include <unordered_map>
 #include <vector>
 
+#include <nxemu-module-spec/input.h>
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/input.h"
 #include "yuzu_common/param_package.h"
-#include "yuzu_common/settings.h"
 #include "yuzu_common/vector_math.h"
 #include "yuzu_hid_core/frontend/motion_input.h"
 #include "yuzu_hid_core/hid_types.h"
@@ -36,7 +36,7 @@ using StickDevices =
 using ControllerMotionDevices =
     std::array<std::unique_ptr<Common::Input::InputDevice>, (size_t)NativeMotionValues::NumMotions>;
 using TriggerDevices =
-    std::array<std::unique_ptr<Common::Input::InputDevice>, InputSettings::NativeTrigger::NumTriggers>;
+    std::array<std::unique_ptr<Common::Input::InputDevice>, static_cast<size_t>(::PadTrigger::NumTriggers)>;
 using ColorDevices =
     std::array<std::unique_ptr<Common::Input::InputDevice>, max_emulated_controllers>;
 using BatteryDevices =
@@ -52,7 +52,7 @@ using OutputDevices = std::array<std::unique_ptr<Common::Input::OutputDevice>, o
 using ButtonParams = std::array<Common::ParamPackage, (size_t)NativeButtonValues::NumButtons>;
 using StickParams = std::array<Common::ParamPackage, (size_t)NativeAnalogValues::NumAnalogs>;
 using ControllerMotionParams = std::array<Common::ParamPackage, (size_t)NativeMotionValues::NumMotions>;
-using TriggerParams = std::array<Common::ParamPackage, InputSettings::NativeTrigger::NumTriggers>;
+using TriggerParams = std::array<Common::ParamPackage, static_cast<size_t>(::PadTrigger::NumTriggers)>;
 using ColorParams = std::array<Common::ParamPackage, max_emulated_controllers>;
 using BatteryParams = std::array<Common::ParamPackage, max_emulated_controllers>;
 using CameraParams = std::array<Common::ParamPackage, max_emulated_controllers>;
@@ -61,7 +61,7 @@ using NfcParams = std::array<Common::ParamPackage, max_emulated_controllers>;
 using OutputParams = std::array<Common::ParamPackage, output_devices_size>;
 
 using ButtonValues = std::array<Common::Input::ButtonStatus, (size_t)NativeButtonValues::NumButtons>;
-using TriggerValues = std::array<Common::Input::TriggerStatus, InputSettings::NativeTrigger::NumTriggers>;
+using TriggerValues = std::array<Common::Input::TriggerStatus, static_cast<size_t>(::PadTrigger::NumTriggers)>;
 using ControllerMotionValues = std::array<ControllerMotionInfo, (size_t)NativeMotionValues::NumMotions>;
 using ColorValues = std::array<Common::Input::BodyColorStatus, max_emulated_controllers>;
 using BatteryValues = std::array<Common::Input::BatteryStatus, max_emulated_controllers>;
@@ -155,10 +155,10 @@ public:
     YUZU_NON_MOVEABLE(EmulatedController);
 
     /// Converts the controller type from settings to npad type
-    static NpadStyleIndex MapSettingsTypeToNPad(InputSettings::ControllerType type);
+    static NpadStyleIndex MapSettingsTypeToNPad(ControllerType type);
 
     /// Converts npad type to the equivalent of controller type from settings
-    static InputSettings::ControllerType MapNPadToSettingsType(NpadStyleIndex type);
+    static ControllerType MapNPadToSettingsType(NpadStyleIndex type);
 
     /// Gets the NpadIdType for this controller
     NpadIdType GetNpadIdType() const;

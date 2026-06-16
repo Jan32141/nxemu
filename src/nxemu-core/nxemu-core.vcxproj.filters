@@ -90,6 +90,9 @@
     <ClInclude Include="modules\system_modules.h">
       <Filter>Header Files\modules</Filter>
     </ClInclude>
+    <ClInclude Include="..\nxemu-module-spec\input.h">
+      <Filter>Module Spec</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="settings\settings.cpp">

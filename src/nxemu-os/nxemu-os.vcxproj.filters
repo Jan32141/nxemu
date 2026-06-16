@@ -1890,6 +1890,9 @@
     <ClInclude Include="os_settings.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="player_input.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="os_settings_identifiers.h">
       <Filter>Header Files</Filter>
     </ClInclude>

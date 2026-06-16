@@ -210,9 +210,6 @@
     <ClInclude Include="settings_enums.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="settings_input.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="settings_setting.h">
       <Filter>Header Files</Filter>
     </ClInclude>

@@ -15,7 +15,6 @@
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/settings_common.h"
 #include "yuzu_common/settings_enums.h"
-#include "yuzu_common/settings_input.h"
 #include "yuzu_common/settings_setting.h"
 
 namespace Settings {
@@ -60,7 +59,7 @@ SWITCHABLE(ConfirmStop, true);
  * The InputSetting class allows for getting a reference to either the global or custom members.
  * This is required as we cannot easily modify the values of user-defined types within containers
  * using the SetValue() member function found in the Setting class. The primary purpose of this
- * class is to store an array of 10 PlayerInput structs for both the global and custom setting and
+ * class is to store an array of 10 player profiles for both the global and custom setting and
  * allows for easily accessing and modifying both settings.
  */
 template <typename Type>

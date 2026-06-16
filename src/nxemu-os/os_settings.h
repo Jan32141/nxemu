@@ -1,4 +1,5 @@
 #pragma once
+#include "player_input.h"
 #include "yuzu_common/settings.h"
 
 struct OSSettings
@@ -56,7 +57,7 @@ struct OSSettings
     Settings::SwitchableSetting<bool> enable_gamemode{linkage, true, "enable_gamemode", Settings::Category::Linux};
 
     // Controls
-    Settings::InputSetting<std::array<InputSettings::PlayerInput, 10>> players;
+    Settings::InputSetting<std::array<PlayerInput, 10>> players;
     // Only read/write enable_raw_input on Windows platforms
 #ifdef _WIN32
     Settings::Setting<bool> enable_raw_input{linkage, false, "enable_raw_input", Settings::Category::Controls, Settings::Specialization::Default, true};
@@ -93,17 +94,17 @@ struct OSSettings
     Settings::Setting<bool> keyboard_enabled{linkage, false, "keyboard_enabled", Settings::Category::Controls};
 
     Settings::Setting<bool> debug_pad_enabled{linkage, false, "debug_pad_enabled", Settings::Category::Controls};
-    InputSettings::ButtonsRaw debug_pad_buttons;
-    InputSettings::AnalogsRaw debug_pad_analogs;
+    ButtonsRaw debug_pad_buttons;
+    AnalogsRaw debug_pad_analogs;
 
-    InputSettings::TouchscreenInput touchscreen;
+    TouchscreenInput touchscreen;
 
     Settings::Setting<std::string> touch_device{linkage, "min_x:100,min_y:50,max_x:1800,max_y:850", "touch_device", Settings::Category::Controls};
     Settings::Setting<int> touch_from_button_map_index{linkage, 0, "touch_from_button_map", Settings::Category::Controls};
     std::vector<Settings::TouchFromButtonMap> touch_from_button_maps;
 
     Settings::Setting<bool> enable_ring_controller{linkage, true, "enable_ring_controller", Settings::Category::Controls};
-    InputSettings::RingconRaw ringcon_analogs;
+    RingconRaw ringcon_analogs;
 
     Settings::Setting<bool> enable_ir_sensor{linkage, false, "enable_ir_sensor", Settings::Category::Controls};
     Settings::Setting<std::string> ir_sensor_device{linkage, "auto", "ir_sensor_device", Settings::Category::Controls};

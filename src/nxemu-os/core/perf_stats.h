@@ -8,6 +8,7 @@
 #include <chrono>
 #include <cstddef>
 #include <mutex>
+#include <nxemu-module-spec/operating_system.h>
 #include "yuzu_common/common_types.h"
 
 namespace Core {

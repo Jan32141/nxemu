@@ -34,6 +34,7 @@
   <ItemGroup>
     <ClInclude Include="..\nxemu-module-spec\base.h" />
     <ClInclude Include="..\nxemu-module-spec\cpu.h" />
+    <ClInclude Include="..\nxemu-module-spec\input.h" />
     <ClInclude Include="..\nxemu-module-spec\operating_system.h" />
     <ClInclude Include="..\nxemu-module-spec\system_loader.h" />
     <ClInclude Include="..\nxemu-module-spec\video.h" />
