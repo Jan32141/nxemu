@@ -1,4 +1,5 @@
 #include "cpu_manager.h"
+#include "cpu_settings.h"
 #include <memory>
 #include <stdio.h>
 #include <nxemu-core/settings/identifiers.h>
@@ -55,6 +56,7 @@ int CALL ModuleInitialize(ModuleInterfaces & interfaces)
     Common::FS::SetAppDirectory(std::string(g_settings->GetString(NXCoreSetting::AppDirectory)));
     Common::Log::Initialize(interfaces.logger, g_settings->GetString(NXCoreSetting::LogFilter));
     g_settings->RegisterCallback(NXCoreSetting::LogFilter, LoggingSettingChanged, nullptr);
+    SetupCpuSetting();
 #ifdef ANDROID
     SetJavaVM(static_cast<JavaVM*>(interfaces.java_vm));
 #endif
@@ -99,6 +101,7 @@ Output: None
 */
 EXPORT void CALL FlushSettings()
 {
+    SaveCpuSettings();
 }
 
 ICpu * CALL CreateCpu(ISystemModules & modules)

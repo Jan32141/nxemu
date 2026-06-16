@@ -4,6 +4,8 @@
 #include <cstring>
 #include "system_loader.h"
 #include "yuzu_common/logging/log.h"
+#include "loader_settings_identifiers.h"
+#include <nxemu-cpu/cpu_settings_identifiers.h>
 #include "yuzu_common/settings.h"
 #include "core/core.h"
 #include "core/file_sys/content_archive.h"
@@ -23,6 +25,8 @@ class Patcher {};
 } // namespace Core::NCE
 #endif
 
+extern IModuleSettings * g_settings;
+
 namespace Loader {
 
 struct PatchCollection {
@@ -35,7 +39,7 @@ struct PatchCollection {
 
     std::vector<Core::NCE::Patcher>* GetPatchers()
     {
-        if (is_application && Settings::IsNceEnabled())
+        if (is_application && g_settings->GetBool(NXCpuSetting::NceEnabled))
         {
             return &patchers;
         }
@@ -203,12 +207,11 @@ AppLoader_DeconstructedRomDirectory::LoadResult AppLoader_DeconstructedRomDirect
     }
     metadata.Print();
 
-    // Enable NCE only for applications with 39-bit address space.
     const bool is_39bit = metadata.GetAddressSpaceType() == ProgramAddressSpaceType::Is39Bit;
     const bool is_application = metadata.GetPoolPartition() == PoolPartition::Application;
-    Settings::SetNceEnabled(is_39bit);
+    g_settings->SetBool(NXLoaderSetting::Has39BitAddressSpace, is_39bit);
 
-    const std::array static_modules = {"rtld",    "main",    "subsdk0", "subsdk1", "subsdk2", "subsdk3", "subsdk4", "subsdk5", "subsdk6", "subsdk7", "subsdk8", "subsdk9", "sdk"};
+    const std::array static_modules = {"rtld", "main", "subsdk0", "subsdk1", "subsdk2", "subsdk3", "subsdk4", "subsdk5", "subsdk6", "subsdk7", "subsdk8", "subsdk9", "sdk"};
     std::size_t code_size{};
 
     // Define an nce patch context for each potential module.
@@ -238,7 +241,7 @@ AppLoader_DeconstructedRomDirectory::LoadResult AppLoader_DeconstructedRomDirect
     // Enable direct memory mapping in case of NCE.
     const uint64_t fastmem_base = [&]() -> size_t
     {
-        if (is_application && Settings::IsNceEnabled())
+        if (is_application && g_settings->GetBool(NXCpuSetting::NceEnabled))
         {
             UNIMPLEMENTED();
             return 0;

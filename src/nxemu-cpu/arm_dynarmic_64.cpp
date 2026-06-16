@@ -1,13 +1,12 @@
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include <yuzu_common/settings.h>
+#include "cpu_settings.h"
 #include <yuzu_common/logging/log.h>
 #include "arm_dynarmic.h"
 #include "arm_dynarmic_64.h"
 #include "dynarmic/interface/exclusive_monitor.h"
 #include <common/maths.h>
-#include <yuzu_common/settings.h>
 #include <yuzu_common/page_table.h>
 #include <yuzu_common/hardware_properties.h>
 #include "yuzu_common/literals.h"
@@ -27,7 +26,7 @@ public:
         m_system(system),
         m_process(process),
         m_debugger_enabled{system.DebuggerEnabled()},
-        m_check_memory_access{m_debugger_enabled || !Settings::values.cpuopt_ignore_memory_aborts.GetValue()}
+        m_check_memory_access{m_debugger_enabled || !cpuSettings.cpuopt_ignore_memory_aborts.GetValue()}
     {
     }
 
@@ -286,54 +285,54 @@ std::shared_ptr<Dynarmic::A64::Jit> ArmDynarmic64::MakeJit(IKernelProcess & proc
     }
 
     // Safe optimizations
-    if (Settings::values.cpu_debug_mode)
+    if (cpuSettings.cpu_debug_mode)
     {
-        if (!Settings::values.cpuopt_page_tables)
+        if (!cpuSettings.cpuopt_page_tables)
         {
             config.page_table = nullptr;
         }
-        if (!Settings::values.cpuopt_block_linking)
+        if (!cpuSettings.cpuopt_block_linking)
         {
             config.optimizations &= ~Dynarmic::OptimizationFlag::BlockLinking;
         }
-        if (!Settings::values.cpuopt_return_stack_buffer)
+        if (!cpuSettings.cpuopt_return_stack_buffer)
         {
             config.optimizations &= ~Dynarmic::OptimizationFlag::ReturnStackBuffer;
         }
-        if (!Settings::values.cpuopt_fast_dispatcher)
+        if (!cpuSettings.cpuopt_fast_dispatcher)
         {
             config.optimizations &= ~Dynarmic::OptimizationFlag::FastDispatch;
         }
-        if (!Settings::values.cpuopt_context_elimination)
+        if (!cpuSettings.cpuopt_context_elimination)
         {
             config.optimizations &= ~Dynarmic::OptimizationFlag::GetSetElimination;
         }
-        if (!Settings::values.cpuopt_const_prop)
+        if (!cpuSettings.cpuopt_const_prop)
         {
             config.optimizations &= ~Dynarmic::OptimizationFlag::ConstProp;
         }
-        if (!Settings::values.cpuopt_misc_ir)
+        if (!cpuSettings.cpuopt_misc_ir)
         {
             config.optimizations &= ~Dynarmic::OptimizationFlag::MiscIROpt;
         }
-        if (!Settings::values.cpuopt_reduce_misalign_checks)
+        if (!cpuSettings.cpuopt_reduce_misalign_checks)
         {
             config.only_detect_misalignment_via_page_table_on_page_boundary = false;
         }
-        if (!Settings::values.cpuopt_fastmem)
+        if (!cpuSettings.cpuopt_fastmem)
         {
             config.fastmem_pointer = nullptr;
             config.fastmem_exclusive_access = false;
         }
-        if (!Settings::values.cpuopt_fastmem_exclusives)
+        if (!cpuSettings.cpuopt_fastmem_exclusives)
         {
             config.fastmem_exclusive_access = false;
         }
-        if (!Settings::values.cpuopt_recompile_exclusives)
+        if (!cpuSettings.cpuopt_recompile_exclusives)
         {
             config.recompile_on_exclusive_fastmem_failure = false;
         }
-        if (!Settings::values.cpuopt_ignore_memory_aborts)
+        if (!cpuSettings.cpuopt_ignore_memory_aborts)
         {
             config.check_halt_on_memory_access = true;
         }
@@ -341,33 +340,33 @@ std::shared_ptr<Dynarmic::A64::Jit> ArmDynarmic64::MakeJit(IKernelProcess & proc
     else
     {
         // Unsafe optimizations
-        if (Settings::values.cpu_accuracy.GetValue() == Settings::CpuAccuracy::Unsafe)
+        if (cpuSettings.cpu_accuracy.GetValue() == CpuAccuracy::Unsafe)
         {
             config.unsafe_optimizations = true;
-            if (Settings::values.cpuopt_unsafe_unfuse_fma)
+            if (cpuSettings.cpuopt_unsafe_unfuse_fma)
             {
                 config.optimizations |= Dynarmic::OptimizationFlag::Unsafe_UnfuseFMA;
             }
-            if (Settings::values.cpuopt_unsafe_reduce_fp_error)
+            if (cpuSettings.cpuopt_unsafe_reduce_fp_error)
             {
                 config.optimizations |= Dynarmic::OptimizationFlag::Unsafe_ReducedErrorFP;
             }
-            if (Settings::values.cpuopt_unsafe_inaccurate_nan)
+            if (cpuSettings.cpuopt_unsafe_inaccurate_nan)
             {
                 config.optimizations |= Dynarmic::OptimizationFlag::Unsafe_InaccurateNaN;
             }
-            if (Settings::values.cpuopt_unsafe_fastmem_check)
+            if (cpuSettings.cpuopt_unsafe_fastmem_check)
             {
                 config.fastmem_address_space_bits = 64;
             }
-            if (Settings::values.cpuopt_unsafe_ignore_global_monitor)
+            if (cpuSettings.cpuopt_unsafe_ignore_global_monitor)
             {
                 config.optimizations |= Dynarmic::OptimizationFlag::Unsafe_IgnoreGlobalMonitor;
             }
         }
 
         // Curated optimizations
-        if (Settings::values.cpu_accuracy.GetValue() == Settings::CpuAccuracy::Auto)
+        if (cpuSettings.cpu_accuracy.GetValue() == CpuAccuracy::Auto)
         {
             config.unsafe_optimizations = true;
             config.optimizations |= Dynarmic::OptimizationFlag::Unsafe_UnfuseFMA;
@@ -376,7 +375,7 @@ std::shared_ptr<Dynarmic::A64::Jit> ArmDynarmic64::MakeJit(IKernelProcess & proc
         }
 
         // Paranoia mode for debugging optimizations
-        if (Settings::values.cpu_accuracy.GetValue() == Settings::CpuAccuracy::Paranoid)
+        if (cpuSettings.cpu_accuracy.GetValue() == CpuAccuracy::Paranoid)
         {
             config.unsafe_optimizations = false;
             config.optimizations = Dynarmic::no_optimizations;

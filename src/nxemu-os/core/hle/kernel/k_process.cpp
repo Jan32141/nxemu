@@ -11,8 +11,11 @@
 #include "core/hle/kernel/k_thread_queue.h"
 #include "core/hle/kernel/k_worker_task_manager.h"
 #include "yuzu_common/scope_exit.h"
+#include <nxemu-cpu/cpu_settings_identifiers.h>
 #include "os_settings.h"
 #include <random>
+
+extern IModuleSettings * g_settings;
 
 namespace Kernel
 {
@@ -1399,7 +1402,7 @@ void KProcess::LoadModule(const IModuleInfo & module, KProcessAddress base_addr)
 
 #ifdef HAS_NCE
     const auto & patch = code_set.PatchSegment();
-    if (this->IsApplication() && Settings::IsNceEnabled() && patch.size != 0)
+    if (this->IsApplication() && g_settings->GetBool(NXCpuSetting::NceEnabled) && patch.size != 0)
     {
         auto & buffer = m_kernel.System().DeviceMemory().buffer;
         const auto & code = code_set.CodeSegment();

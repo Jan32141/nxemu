@@ -15,7 +15,7 @@
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/page_table.h"
 #include "yuzu_common/scope_exit.h"
-#include "yuzu_common/settings.h"
+#include <nxemu-cpu/cpu_settings_identifiers.h>
 #include "nxemu-video/video_settings_identifiers.h"
 #include "yuzu_common/swap.h"
 #include "core/core.h"
@@ -50,8 +50,9 @@ struct Memory::Impl {
     void SetCurrentPageTable(Kernel::KProcess& process) {
         current_page_table = &process.GetKPageTable().GetImpl();
 
-        if (std::addressof(process) == system.ApplicationProcess() &&
-            Settings::IsFastmemEnabled()) {
+        const bool fastmem = !g_settings->GetBool(NXCpuSetting::CpuDebugMode) ||
+                             g_settings->GetBool(NXCpuSetting::CpuoptFastmem);
+        if (std::addressof(process) == system.ApplicationProcess() && fastmem) {
             current_page_table->fastmem_arena = system.DeviceMemory().buffer.VirtualBasePointer();
         } else {
             current_page_table->fastmem_arena = nullptr;

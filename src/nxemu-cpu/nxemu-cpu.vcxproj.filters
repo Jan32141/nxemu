@@ -504,6 +504,15 @@
     <ClInclude Include="cpu_manager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="cpu_enum_strings.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="cpu_settings.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="cpu_settings_identifiers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="arm_dynarmic_32.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -1083,6 +1092,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="cpu_manager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="cpu_enum_strings.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="cpu_settings.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="arm_dynarmic_32.cpp">

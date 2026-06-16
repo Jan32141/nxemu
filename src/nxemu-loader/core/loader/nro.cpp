@@ -10,6 +10,8 @@
 #include "yuzu_common/common_funcs.h"
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/logging/log.h"
+#include "loader_settings_identifiers.h"
+#include <nxemu-cpu/cpu_settings_identifiers.h>
 #include "yuzu_common/settings.h"
 #include "yuzu_common/swap.h"
 #include "core/core.h"
@@ -27,6 +29,8 @@
 #ifdef HAS_NCE
 #include "core/arm/nce/patcher.h"
 #endif
+
+extern IModuleSettings * g_settings;
 
 namespace Loader {
 
@@ -223,12 +227,12 @@ static bool LoadNroImpl(Systemloader & loader, ISystemModules & modules, const s
     const auto& code = codeset.CodeSegment();
 
     // NROs always have a 39-bit address space.
-    Settings::SetNceEnabled(true);
+    g_settings->SetBool(NXLoaderSetting::Has39BitAddressSpace, true);
 
     // Create NCE patcher
     Core::NCE::Patcher patch{};
 
-    if (Settings::IsNceEnabled()) {
+    if (g_settings->GetBool(NXCpuSetting::NceEnabled)) {
         // Patch SVCs and MRS calls in the guest code
         patch.PatchText(program_image, code);
 
@@ -247,7 +251,7 @@ static bool LoadNroImpl(Systemloader & loader, ISystemModules & modules, const s
 
     // Enable direct memory mapping in case of NCE.
     const uint64_t fastmem_base = [&]() -> size_t {
-        if (Settings::IsNceEnabled()) {
+        if (g_settings->GetBool(NXCpuSetting::NceEnabled)) {
             UNIMPLEMENTED();
             return 0;
         }
@@ -265,7 +269,7 @@ static bool LoadNroImpl(Systemloader & loader, ISystemModules & modules, const s
     // Relocate code patch and copy to the program_image if running under NCE.
     // This needs to be after LoadFromMetadata so we can use the process entry point.
 #ifdef HAS_NCE
-    if (Settings::IsNceEnabled()) {
+    if (g_settings->GetBool(NXCpuSetting::NceEnabled)) {
         patch.RelocateAndCopy(process.GetEntryPoint(), code, program_image,
                               &process.GetPostHandlers());
     }

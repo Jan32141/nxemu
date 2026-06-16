@@ -35,8 +35,6 @@ SETTING(std::string, false);
 SETTING(std::string, false);
 SETTING(u16, false);
 SWITCHABLE(AudioMode, true);
-SWITCHABLE(CpuBackend, true);
-SWITCHABLE(CpuAccuracy, true);
 SWITCHABLE(Language, true);
 SWITCHABLE(MemoryLayout, true);
 SWITCHABLE(Region, true);
@@ -119,59 +117,6 @@ struct Values {
                                              true,
                                              &use_speed_limit};
 
-    // Cpu
-    SwitchableSetting<CpuBackend, true> cpu_backend{linkage,
-#ifdef HAS_NCE
-                                                    CpuBackend::Nce,
-#else
-                                                    CpuBackend::Dynarmic,
-#endif
-                                                    CpuBackend::Dynarmic,
-#ifdef HAS_NCE
-                                                    CpuBackend::Nce,
-#else
-                                                    CpuBackend::Dynarmic,
-#endif
-                                                    "cpu_backend",
-                                                    Category::Cpu};
-    SwitchableSetting<CpuAccuracy, true> cpu_accuracy{linkage,           CpuAccuracy::Auto,
-                                                      CpuAccuracy::Auto, CpuAccuracy::Paranoid,
-                                                      "cpu_accuracy",    Category::Cpu};
-    SwitchableSetting<bool> cpu_debug_mode{linkage, false, "cpu_debug_mode", Category::CpuDebug};
-
-    Setting<bool> cpuopt_page_tables{linkage, true, "cpuopt_page_tables", Category::CpuDebug};
-    Setting<bool> cpuopt_block_linking{linkage, true, "cpuopt_block_linking", Category::CpuDebug};
-    Setting<bool> cpuopt_return_stack_buffer{linkage, true, "cpuopt_return_stack_buffer",
-                                             Category::CpuDebug};
-    Setting<bool> cpuopt_fast_dispatcher{linkage, true, "cpuopt_fast_dispatcher",
-                                         Category::CpuDebug};
-    Setting<bool> cpuopt_context_elimination{linkage, true, "cpuopt_context_elimination",
-                                             Category::CpuDebug};
-    Setting<bool> cpuopt_const_prop{linkage, true, "cpuopt_const_prop", Category::CpuDebug};
-    Setting<bool> cpuopt_misc_ir{linkage, true, "cpuopt_misc_ir", Category::CpuDebug};
-    Setting<bool> cpuopt_reduce_misalign_checks{linkage, true, "cpuopt_reduce_misalign_checks",
-                                                Category::CpuDebug};
-    SwitchableSetting<bool> cpuopt_fastmem{linkage, true, "cpuopt_fastmem", Category::CpuDebug};
-    SwitchableSetting<bool> cpuopt_fastmem_exclusives{linkage, true, "cpuopt_fastmem_exclusives",
-                                                      Category::CpuDebug};
-    Setting<bool> cpuopt_recompile_exclusives{linkage, true, "cpuopt_recompile_exclusives",
-                                              Category::CpuDebug};
-    Setting<bool> cpuopt_ignore_memory_aborts{linkage, true, "cpuopt_ignore_memory_aborts",
-                                              Category::CpuDebug};
-
-    SwitchableSetting<bool> cpuopt_unsafe_unfuse_fma{linkage, true, "cpuopt_unsafe_unfuse_fma",
-                                                     Category::CpuUnsafe};
-    SwitchableSetting<bool> cpuopt_unsafe_reduce_fp_error{
-        linkage, true, "cpuopt_unsafe_reduce_fp_error", Category::CpuUnsafe};
-    SwitchableSetting<bool> cpuopt_unsafe_ignore_standard_fpcr{
-        linkage, true, "cpuopt_unsafe_ignore_standard_fpcr", Category::CpuUnsafe};
-    SwitchableSetting<bool> cpuopt_unsafe_inaccurate_nan{
-        linkage, true, "cpuopt_unsafe_inaccurate_nan", Category::CpuUnsafe};
-    SwitchableSetting<bool> cpuopt_unsafe_fastmem_check{
-        linkage, true, "cpuopt_unsafe_fastmem_check", Category::CpuUnsafe};
-    SwitchableSetting<bool> cpuopt_unsafe_ignore_global_monitor{
-        linkage, true, "cpuopt_unsafe_ignore_global_monitor", Category::CpuUnsafe};
-
     // Data Storage
     Setting<bool> use_virtual_sd{linkage, true, "use_virtual_sd", Category::DataStorage};
     Setting<bool> gamecard_inserted{linkage, false, "gamecard_inserted", Category::DataStorage};
@@ -226,10 +171,6 @@ struct Values {
 };
 
 extern Values values;
-
-bool IsFastmemEnabled();
-void SetNceEnabled(bool is_64bit);
-bool IsNceEnabled();
 
 float Volume();
 

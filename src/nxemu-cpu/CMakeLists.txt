@@ -41,8 +41,13 @@ add_library(nxemu-cpu SHARED
     arm_dynarmic_32.cpp
     arm_dynarmic_64.cpp
     arm_dynarmic_64.h
+    cpu_enum_strings.cpp
+    cpu_enum_strings.h
     cpu_manager.cpp
     cpu_manager.h
+    cpu_settings.cpp
+    cpu_settings.h
+    cpu_settings_identifiers.h
     dynarmic_cp15.cpp
     dynarmic_cp15.h
     exclusive_monitor_interface.cpp

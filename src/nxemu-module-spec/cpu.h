@@ -1,5 +1,26 @@
 #pragma once
 #include "base.h"
+#include <stdint.h>
+
+enum class CpuBackend : uint32_t
+{
+    Dynarmic = 0,
+    Nce,
+};
+
+enum class CpuAccuracy : uint32_t
+{
+    Auto = 0,
+    Accurate,
+    Unsafe,
+    Paranoid,
+};
+
+enum class CpuSettingTranslationType : uint32_t
+{
+    CpuBackend = 0,
+    CpuAccuracy,
+};
 
 nxinterface ICpuCore;
 

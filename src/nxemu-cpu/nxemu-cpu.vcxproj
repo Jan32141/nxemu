@@ -120,6 +120,9 @@
     <ClInclude Include="common\variant_util.h" />
     <ClInclude Include="common\x64_disassemble.h" />
     <ClInclude Include="cpu_manager.h" />
+    <ClInclude Include="cpu_enum_strings.h" />
+    <ClInclude Include="cpu_settings.h" />
+    <ClInclude Include="cpu_settings_identifiers.h" />
     <ClInclude Include="dynarmic_cp15.h" />
     <ClInclude Include="exclusive_monitor_interface.h" />
     <ClInclude Include="frontend\A32\a32_ir_emitter.h" />
@@ -173,6 +176,8 @@
     <ClCompile Include="arm_dynarmic_32.cpp" />
     <ClCompile Include="arm_dynarmic_64.cpp" />
     <ClCompile Include="cpu_manager.cpp" />
+    <ClCompile Include="cpu_enum_strings.cpp" />
+    <ClCompile Include="cpu_settings.cpp" />
     <ClCompile Include="dynarmic\backend\block_range_information.cpp" />
     <ClCompile Include="dynarmic\backend\x64\a32_emit_x64.cpp" />
     <ClCompile Include="dynarmic\backend\x64\a32_emit_x64_memory.cpp" />

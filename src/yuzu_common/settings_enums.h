@@ -115,10 +115,6 @@ ENUM(TimeZone, Auto, Default, Cet, Cst6Cdt, Cuba, Eet, Egypt, Eire, Est, Est5Edt
      Roc, Rok, Singapore, Turkey, Uct, Universal, Utc, WSu, Wet, Zulu);
 
 
-ENUM(CpuBackend, Dynarmic, Nce);
-
-ENUM(CpuAccuracy, Auto, Accurate, Unsafe, Paranoid);
-
 ENUM(MemoryLayout, Memory_4Gb, Memory_6Gb, Memory_8Gb);
 
 ENUM(ConfirmStop, Ask_Always, Ask_Based_On_Game, Ask_Never);
