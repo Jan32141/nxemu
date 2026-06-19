@@ -5,10 +5,9 @@
 
 #include "frontend/framebuffer_layout.h"
 #include "nxemu-os/os_settings_identifiers.h"
-#include "yuzu_common/settings.h"
 #include "video_settings.h"
 #include "yuzu_common/yuzu_assert.h"
-#include <nxemu-module-spec/base.h>
+#include <nxemu-module-spec/operating_system.h>
 
 extern IModuleSettings * g_settings;
 
@@ -57,7 +56,7 @@ FramebufferLayout DefaultFrameLayout(u32 width, u32 height)
 
 FramebufferLayout FrameLayoutFromResolutionScale(f32 res_scale)
 {
-    const bool is_docked = g_settings->GetInt(NXOsSetting::DockedMode) == static_cast<int32_t>(Settings::DockedMode::Docked);
+    const bool is_docked = g_settings->GetInt(NXOsSetting::DockedMode) == static_cast<int32_t>(DockedMode::Docked);
     const u32 screen_width = is_docked ? ScreenDocked::Width : ScreenUndocked::Width;
     const u32 screen_height = is_docked ? ScreenDocked::Height : ScreenUndocked::Height;
 

@@ -5,9 +5,9 @@
 #include "core/hle/service/cmif_serialization.h"
 #include "core/hle/service/vi/container.h"
 #include "core/hle/service/vi/vi_types.h"
+#include "os_settings.h"
 #include "os_settings_identifiers.h"
-#include <nxemu-module-spec/base.h>
-#include <yuzu_common/settings_enums.h>
+#include <nxemu-module-spec/operating_system.h>
 
 extern IModuleSettings * g_settings;
 
@@ -112,7 +112,7 @@ Result ISystemDisplayService::GetDisplayMode(Out<DisplayMode> out_display_mode, 
 {
     LOG_WARNING(Service_VI, "(STUBBED) called, display_id={}", display_id);
 
-    const bool is_docked = g_settings->GetInt(NXOsSetting::DockedMode) == static_cast<int32_t>(Settings::DockedMode::Docked);
+    const bool is_docked = g_settings->GetInt(NXOsSetting::DockedMode) == static_cast<int32_t>(DockedMode::Docked);
     if (is_docked)
     {
         out_display_mode->width = static_cast<u32>(DisplayResolution::DockedWidth);

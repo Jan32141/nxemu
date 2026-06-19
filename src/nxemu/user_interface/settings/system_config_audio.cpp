@@ -6,16 +6,15 @@
 #include <nxemu-core/modules/system_modules.h>
 #include <nxemu-os/os_settings_identifiers.h>
 #include <nxemu-module-spec/operating_system.h>
-#include <yuzu_common/settings_enums.h>
+#include <yuzu_audio_core/audio_types.h>
 #include <widgets/combo_box.h>
-
 namespace
 {
 static ConfigSetting audioSettings[] = {
-    ConfigSetting(ConfigSetting::ComboBox, "audioOutputEngine", false, Settings::EnumMetadata<Settings::AudioEngine>::Index(), NXOsSetting::AudioSinkId),
+    ConfigSetting(ConfigSetting::ComboBox, "audioOutputEngine", false, SystemConfig::TranslationType::AudioEngine, NXOsSetting::AudioSinkId),
     ConfigSetting(ConfigSetting::ComboBoxValue, "audioOutputDevice", false, NXOsSetting::AudioOutputDeviceId),
     ConfigSetting(ConfigSetting::ComboBoxValue, "audioInputDevice", false, NXOsSetting::AudioInputDeviceId),
-    ConfigSetting(ConfigSetting::ComboBox, "soundMode", true, Settings::EnumMetadata<Settings::AudioMode>::Index(), NXOsSetting::AudioMode),
+    ConfigSetting(ConfigSetting::ComboBox, "soundMode", true, SystemConfig::TranslationType::AudioMode, NXOsSetting::AudioMode),
     ConfigSetting(ConfigSetting::Slider, "audioVolume", true, NXOsSetting::AudioVolume),
     ConfigSetting(ConfigSetting::CheckBox, "muteAudio", true, NXOsSetting::AudioMuted),
 };
@@ -94,11 +93,11 @@ void SystemConfigAudio::SetupAudioPage(SciterElement page)
     if (interfacePtr)
     {
         m_outputEngine = std::static_pointer_cast<IComboBox>(interfacePtr);
-        int32_t index = m_outputEngine->AddItem("auto", stdstr_f("%d", Settings::AudioEngine::Auto).c_str());
+        int32_t index = m_outputEngine->AddItem(m_config.GetSettingLabel(SystemConfig::TranslationType::AudioEngine, (int32_t)AudioCore::Sink::AudioEngine::Auto), stdstr_f("%d", (int32_t)AudioCore::Sink::AudioEngine::Auto).c_str());
         int32_t selectedIndex = index;
         for (size_t i = 0, n = ids.size(); i < n; i++)
         {
-            index = m_outputEngine->AddItem(Settings::CanonicalizeEnum((Settings::AudioEngine)ids[i]).c_str(), stdstr_f("%d", ids[i]).c_str());
+            index = m_outputEngine->AddItem(m_config.GetSettingLabel(SystemConfig::TranslationType::AudioEngine, (int32_t)ids[i]), stdstr_f("%d", ids[i]).c_str());
             if (audioSinkId == (int32_t)ids[i])
             {
                 selectedIndex = index;

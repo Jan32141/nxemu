@@ -7,7 +7,7 @@
 #include "core/hle/service/vi/container.h"
 #include "core/hle/service/vi/display_list.h"
 #include "core/hle/service/vi/vsync_manager.h"
-#include "yuzu_common/settings.h"
+#include "os_settings.h"
 #include <nxemu-module-spec/system_loader.h>
 #include <nxemu-video/video_settings_identifiers.h>
 
@@ -107,15 +107,14 @@ void Conductor::VsyncThread(std::stop_token token)
 
 s64 Conductor::GetNextTicks() const
 {
-    const auto & settings = Settings::values;
     auto speed_scale = 1.f;
-    if (settings.use_multi_core.GetValue())
+    if (osSettings.use_multi_core)
     {
-        if (settings.use_speed_limit.GetValue())
+        if (osSettings.use_speed_limit)
         {
             // Scales the speed based on speed_limit setting on MC. SC is handled by
             // SpeedLimiter::DoSpeedLimiting.
-            speed_scale = 100.f / settings.speed_limit.GetValue();
+            speed_scale = 100.f / osSettings.speed_limit;
         }
         else
         {

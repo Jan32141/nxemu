@@ -29,6 +29,7 @@ enum class SettingType
     AudioMode,
     Language,
     DockedMode,
+    MemoryLayout,
 };
 
 enum class RangedWidth
@@ -45,10 +46,11 @@ public:
     OsSetting(const char * id, const char * path, float * val, float defaultValue);
     OsSetting(const char * id, const char * path, std::string * val, const char * defaultValue);
     OsSetting(const char * id, const char * path, ControllerType * val, ControllerType defaultValue);
-    OsSetting(const char * id, const char * path, Settings::AudioEngine * val, Settings::AudioEngine defaultValue);
-    OsSetting(const char * id, const char * path, Settings::AudioMode * val, Settings::AudioMode defaultValue);
-    OsSetting(const char * id, const char * path, Settings::Language * val, Settings::Language defaultValue);
-    OsSetting(const char * id, const char * path, Settings::DockedMode * val, Settings::DockedMode defaultValue);
+    OsSetting(const char * id, const char * path, AudioCore::Sink::AudioEngine * val, AudioCore::Sink::AudioEngine defaultValue);
+    OsSetting(const char * id, const char * path, AudioMode * val, AudioMode defaultValue);
+    OsSetting(const char * id, const char * path, Language * val, Language defaultValue);
+    OsSetting(const char * id, const char * path, DockedMode * val, DockedMode defaultValue);
+    OsSetting(const char * id, const char * path, MemoryLayout * val, MemoryLayout defaultValue);
     OsSetting(const char * id, const char * path, u8 * val, int32_t defaultValue, int32_t minValue, int32_t maxValue);
     OsSetting(const char * id, const char * path, u16 * val, int32_t defaultValue, int32_t minValue, int32_t maxValue);
     OsSetting(const char * id, const char * path, s32 * val, s32 defaultValue);
@@ -73,10 +75,11 @@ public:
         float floatValue;
         const char * stringValue;
         ControllerType controllerType;
-        Settings::AudioEngine audioEngine;
-        Settings::AudioMode audioMode;
-        Settings::Language language;
-        Settings::DockedMode dockedMode;
+        AudioCore::Sink::AudioEngine audioEngine;
+        AudioMode audioMode;
+        Language language;
+        DockedMode dockedMode;
+        MemoryLayout memoryLayout;
     } defaults;
     union
     {
@@ -90,10 +93,11 @@ public:
         float * floatValue;
         std::string * stringValue;
         ControllerType * controllerType;
-        Settings::AudioEngine * audioEngine;
-        Settings::AudioMode * audioMode;
-        Settings::Language * language;
-        Settings::DockedMode * dockedMode;
+        AudioCore::Sink::AudioEngine * audioEngine;
+        AudioMode * audioMode;
+        Language * language;
+        DockedMode * dockedMode;
+        MemoryLayout * memoryLayout;
     } value;
 };
 
@@ -468,25 +472,26 @@ static OsSetting settings[] = {
         {nullptr, "controller\\player_9\\ProfileName", &osSettings.players[9].profile_name, ""},
         {nullptr, "controller\\player_9\\Vibration\\UseSystem", &osSettings.players[9].use_system_vibrator, false},
 
-        {NXOsSetting::AudioSinkId, "audio\\sink_id", &osSettings.sink_id, Settings::AudioEngine::Auto},
+        {NXOsSetting::AudioSinkId, "audio\\sink_id", &osSettings.sink_id, AudioCore::Sink::AudioEngine::Auto},
         {NXOsSetting::AudioOutputDeviceId, "audio\\output_device_id", &osSettings.audio_output_device_id, "auto"},
         {NXOsSetting::AudioInputDeviceId, "audio\\input_device_id", &osSettings.audio_input_device_id, "auto"},
-        {NXOsSetting::AudioMode, "audio\\mode", &osSettings.sound_index, Settings::AudioMode::Stereo},
+        {NXOsSetting::AudioMode, "audio\\mode", &osSettings.sound_index, AudioMode::Stereo},
         {NXOsSetting::AudioVolume, "audio\\volume", &osSettings.volume, 100, 0, 200},
         {NXOsSetting::AudioMuted, "audio\\muted", &osSettings.audio_muted, false},
         {NXOsSetting::SpeedLimit, "system\\speed_limit", &osSettings.speed_limit, 100, 0, 9999},
         {NXOsSetting::UseMultiCore, "system\\use_multi_core", &osSettings.use_multi_core, true},
         {NXOsSetting::UseSpeedLimit, "system\\use_speed_limit", &osSettings.use_speed_limit, true},
-        {NXOsSetting::LanguageIndex, "system\\language_index", &osSettings.language_index, Settings::Language::EnglishAmerican},
+        {NXOsSetting::MemoryLayout, "system\\memory_layout_mode", &osSettings.memory_layout_mode, MemoryLayout::Memory_4Gb},
+        {NXOsSetting::LanguageIndex, "system\\language_index", &osSettings.language_index, Language::EnglishAmerican},
         {NXOsSetting::CurrentUser, "system\\current_user", &osSettings.current_user, 0},
         {NXOsSetting::RngSeedEnabled, "system\\rng_seed_enabled", &osSettings.rng_seed_enabled, false},
         {NXOsSetting::RngSeed, "system\\rng_seed", &osSettings.rng_seed, 0u},
         {NXOsSetting::CustomRtcEnabled, "system\\custom_rtc_enabled", &osSettings.custom_rtc_enabled, false},
         {NXOsSetting::CustomRtcOffset, "system\\custom_rtc_offset", &osSettings.custom_rtc_offset, 0, INT_MIN, INT_MAX},
 #ifdef ANDROID
-        {NXOsSetting::DockedMode, "system\\docked_mode", &osSettings.use_docked_mode, Settings::DockedMode::Handheld},
+        {NXOsSetting::DockedMode, "system\\docked_mode", &osSettings.use_docked_mode, DockedMode::Handheld},
 #else
-        {NXOsSetting::DockedMode, "system\\docked_mode", &osSettings.use_docked_mode, Settings::DockedMode::Docked},
+        {NXOsSetting::DockedMode, "system\\docked_mode", &osSettings.use_docked_mode, DockedMode::Docked},
 #endif
     };
 
@@ -553,16 +558,19 @@ void OsSettingChanged(const char * setting, void * /*userData*/)
             *osSetting.value.controllerType = static_cast<ControllerType>(g_settings->GetInt(setting));
             break;
         case SettingType::AudioEngine:
-            *osSetting.value.audioEngine = static_cast<Settings::AudioEngine>(g_settings->GetInt(setting));
+            *osSetting.value.audioEngine = static_cast<AudioCore::Sink::AudioEngine>(g_settings->GetInt(setting));
             break;
         case SettingType::AudioMode:
-            *osSetting.value.audioMode = static_cast<Settings::AudioMode>(g_settings->GetInt(setting));
+            *osSetting.value.audioMode = static_cast<AudioMode>(g_settings->GetInt(setting));
             break;
         case SettingType::Language:
-            *osSetting.value.language = static_cast<Settings::Language>(g_settings->GetInt(setting));
+            *osSetting.value.language = static_cast<Language>(g_settings->GetInt(setting));
             break;
         case SettingType::DockedMode:
-            *osSetting.value.dockedMode = static_cast<Settings::DockedMode>(g_settings->GetInt(setting));
+            *osSetting.value.dockedMode = static_cast<DockedMode>(g_settings->GetInt(setting));
+            break;
+        case SettingType::MemoryLayout:
+            *osSetting.value.memoryLayout = static_cast<MemoryLayout>(g_settings->GetInt(setting));
             break;
         default:
             UNIMPLEMENTED();
@@ -575,25 +583,25 @@ namespace
 
 void InitializeOsSettingDefaults()
 {
-    osSettings.cabinet_applet_mode = Settings::AppletMode::LLE;
-    osSettings.controller_applet_mode = Settings::AppletMode::HLE;
-    osSettings.data_erase_applet_mode = Settings::AppletMode::HLE;
-    osSettings.error_applet_mode = Settings::AppletMode::LLE;
-    osSettings.net_connect_applet_mode = Settings::AppletMode::HLE;
-    osSettings.player_select_applet_mode = Settings::AppletMode::HLE;
-    osSettings.swkbd_applet_mode = Settings::AppletMode::LLE;
-    osSettings.mii_edit_applet_mode = Settings::AppletMode::LLE;
-    osSettings.web_applet_mode = Settings::AppletMode::HLE;
-    osSettings.shop_applet_mode = Settings::AppletMode::HLE;
-    osSettings.photo_viewer_applet_mode = Settings::AppletMode::LLE;
-    osSettings.offline_web_applet_mode = Settings::AppletMode::LLE;
-    osSettings.login_share_applet_mode = Settings::AppletMode::HLE;
-    osSettings.wifi_web_auth_applet_mode = Settings::AppletMode::HLE;
-    osSettings.my_page_applet_mode = Settings::AppletMode::LLE;
+    osSettings.cabinet_applet_mode = AppletMode::LLE;
+    osSettings.controller_applet_mode = AppletMode::HLE;
+    osSettings.data_erase_applet_mode = AppletMode::HLE;
+    osSettings.error_applet_mode = AppletMode::LLE;
+    osSettings.net_connect_applet_mode = AppletMode::HLE;
+    osSettings.player_select_applet_mode = AppletMode::HLE;
+    osSettings.swkbd_applet_mode = AppletMode::LLE;
+    osSettings.mii_edit_applet_mode = AppletMode::LLE;
+    osSettings.web_applet_mode = AppletMode::HLE;
+    osSettings.shop_applet_mode = AppletMode::HLE;
+    osSettings.photo_viewer_applet_mode = AppletMode::LLE;
+    osSettings.offline_web_applet_mode = AppletMode::LLE;
+    osSettings.login_share_applet_mode = AppletMode::HLE;
+    osSettings.wifi_web_auth_applet_mode = AppletMode::HLE;
+    osSettings.my_page_applet_mode = AppletMode::LLE;
 
     osSettings.dump_audio_commands = false;
-    osSettings.region_index = Settings::Region::Usa;
-    osSettings.time_zone_index = Settings::TimeZone::Auto;
+    osSettings.region_index = Region::Usa;
+    osSettings.time_zone_index = TimeZone::Auto;
     osSettings.custom_rtc = 0;
     osSettings.device_name = "NxEmu";
     osSettings.enable_gamemode = true;
@@ -676,6 +684,9 @@ void SetupOsSetting(void)
             break;
         case SettingType::DockedMode:
             *osSetting.value.dockedMode = osSetting.defaults.dockedMode;
+            break;
+        case SettingType::MemoryLayout:
+            *osSetting.value.memoryLayout = osSetting.defaults.memoryLayout;
             break;
         default:
             UNIMPLEMENTED();
@@ -775,6 +786,12 @@ void SetupOsSetting(void)
                     *osSetting.value.dockedMode = DockedModeFromString(value.asString());
                 }
                 break;
+            case SettingType::MemoryLayout:
+                if (value.isString())
+                {
+                    *osSetting.value.memoryLayout = MemoryLayoutFromString(value.asString());
+                }
+                break;
             default:
                 UNIMPLEMENTED();
             }
@@ -847,6 +864,10 @@ void SetupOsSetting(void)
         case SettingType::DockedMode:
             g_settings->SetDefaultInt(osSetting.identifier, static_cast<int32_t>(osSetting.defaults.dockedMode));
             g_settings->SetInt(osSetting.identifier, static_cast<int32_t>(*osSetting.value.dockedMode));
+            break;
+        case SettingType::MemoryLayout:
+            g_settings->SetDefaultInt(osSetting.identifier, static_cast<int32_t>(osSetting.defaults.memoryLayout));
+            g_settings->SetInt(osSetting.identifier, static_cast<int32_t>(*osSetting.value.memoryLayout));
             break;
         default:
             UNIMPLEMENTED();
@@ -944,6 +965,12 @@ void SaveOsSettings(void)
                 JsonSetNestedValue(root, osSetting.json_path, DockedModeToString(*osSetting.value.dockedMode));
             }
             break;
+        case SettingType::MemoryLayout:
+            if (*osSetting.value.memoryLayout != osSetting.defaults.memoryLayout)
+            {
+                JsonSetNestedValue(root, osSetting.json_path, MemoryLayoutToString(*osSetting.value.memoryLayout));
+            }
+            break;
         default:
             UNIMPLEMENTED();
         }
@@ -989,7 +1016,7 @@ OsSetting::OsSetting(const char * id, const char * path, ControllerType * val, C
     value.controllerType = val;
 }
 
-OsSetting::OsSetting(const char * id, const char * path, Settings::AudioEngine * val, Settings::AudioEngine defaultValue) :
+OsSetting::OsSetting(const char * id, const char * path, AudioCore::Sink::AudioEngine * val, AudioCore::Sink::AudioEngine defaultValue) :
     identifier(id),
     json_path(path),
     settingType(SettingType::AudioEngine)
@@ -998,7 +1025,7 @@ OsSetting::OsSetting(const char * id, const char * path, Settings::AudioEngine *
     value.audioEngine = val;
 }
 
-OsSetting::OsSetting(const char * id, const char * path, Settings::AudioMode * val, Settings::AudioMode defaultValue) :
+OsSetting::OsSetting(const char * id, const char * path, AudioMode * val, AudioMode defaultValue) :
     identifier(id),
     json_path(path),
     settingType(SettingType::AudioMode)
@@ -1007,7 +1034,7 @@ OsSetting::OsSetting(const char * id, const char * path, Settings::AudioMode * v
     value.audioMode = val;
 }
 
-OsSetting::OsSetting(const char * id, const char * path, Settings::Language * val, Settings::Language defaultValue) :
+OsSetting::OsSetting(const char * id, const char * path, Language * val, Language defaultValue) :
     identifier(id),
     json_path(path),
     settingType(SettingType::Language)
@@ -1016,13 +1043,22 @@ OsSetting::OsSetting(const char * id, const char * path, Settings::Language * va
     value.language = val;
 }
 
-OsSetting::OsSetting(const char * id, const char * path, Settings::DockedMode * val, Settings::DockedMode defaultValue) :
+OsSetting::OsSetting(const char * id, const char * path, DockedMode * val, DockedMode defaultValue) :
     identifier(id),
     json_path(path),
     settingType(SettingType::DockedMode)
 {
     defaults.dockedMode = defaultValue;
     value.dockedMode = val;
+}
+
+OsSetting::OsSetting(const char * id, const char * path, MemoryLayout * val, MemoryLayout defaultValue) :
+    identifier(id),
+    json_path(path),
+    settingType(SettingType::MemoryLayout)
+{
+    defaults.memoryLayout = defaultValue;
+    value.memoryLayout = val;
 }
 
 OsSetting::OsSetting(const char * id, const char * path, u8 * val, int32_t defaultValue, int32_t minValue, int32_t maxValue) :

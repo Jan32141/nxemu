@@ -11,10 +11,10 @@
 #include "core/hle/service/sm/sm.h"
 #include "core/hle/service/vi/vi.h"
 #include "core/hle/service/vi/vi_types.h"
+#include "os_settings.h"
 #include "os_settings_identifiers.h"
 #include "yuzu_common/settings.h"
-#include <nxemu-module-spec/base.h>
-#include <yuzu_common/settings_enums.h>
+#include <nxemu-module-spec/operating_system.h>
 
 extern IModuleSettings * g_settings;
 
@@ -159,7 +159,7 @@ Result ICommonStateGetter::GetDefaultDisplayResolutionChangeEvent(
 
 Result ICommonStateGetter::GetOperationMode(Out<OperationMode> out_operation_mode)
 {
-    const bool use_docked_mode = g_settings->GetInt(NXOsSetting::DockedMode) == static_cast<int32_t>(Settings::DockedMode::Docked);
+    const bool use_docked_mode = g_settings->GetInt(NXOsSetting::DockedMode) == static_cast<int32_t>(DockedMode::Docked);
     LOG_DEBUG(Service_AM, "called, use_docked_mode={}", use_docked_mode);
     *out_operation_mode = use_docked_mode ? OperationMode::Docked : OperationMode::Handheld;
     R_SUCCEED();
@@ -231,7 +231,7 @@ Result ICommonStateGetter::GetDefaultDisplayResolution(Out<s32> out_width, Out<s
 {
     LOG_DEBUG(Service_AM, "called");
 
-    const bool docked = g_settings->GetInt(NXOsSetting::DockedMode) == static_cast<int32_t>(Settings::DockedMode::Docked);
+    const bool docked = g_settings->GetInt(NXOsSetting::DockedMode) == static_cast<int32_t>(DockedMode::Docked);
     if (docked)
     {
         *out_width = static_cast<u32>(Service::VI::DisplayResolution::DockedWidth);

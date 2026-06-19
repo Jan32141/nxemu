@@ -85,7 +85,6 @@ add_library(yuzu_common STATIC
     settings.h
     settings_common.cpp
     settings_common.h
-    settings_enums.h
     settings_setting.h
     slot_vector.h
     socket_types.h

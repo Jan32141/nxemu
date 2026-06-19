@@ -12,11 +12,14 @@
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/div_ceil.h"
 #include "yuzu_common/scope_exit.h"
-#include "yuzu_common/settings.h"
+#include <nxemu-module-spec/operating_system.h>
+#include "nxemu-os/os_settings_identifiers.h"
 
 #include "host1x/gpu_device_memory_manager.h"
 #include "rasterizer_interface.h"
 #include "device_memory_manager.h"
+
+extern IModuleSettings * g_settings;
 
 namespace Core
 {
@@ -190,7 +193,7 @@ template <typename Traits>
 DeviceMemoryManager<Traits>::DeviceMemoryManager(const IDeviceMemory & device_memory_) :
     physical_base{reinterpret_cast<const uintptr_t>(device_memory_.BackingBasePointer())},
     device_inter{nullptr}, compressed_physical_ptr(device_as_size >> DEVICE_PAGEBITS),
-    compressed_device_addr(1ULL << ((Settings::values.memory_layout_mode.GetValue() == Settings::MemoryLayout::Memory_4Gb ? physical_min_bits : physical_max_bits) - DEVICE_PAGEBITS)),
+    compressed_device_addr(1ULL << ((g_settings->GetInt(NXOsSetting::MemoryLayout) == (int32_t)MemoryLayout::Memory_4Gb ? physical_min_bits : physical_max_bits) - DEVICE_PAGEBITS)),
     continuity_tracker(device_as_size >> DEVICE_PAGEBITS),
     cpu_backing_address(device_as_size >> DEVICE_PAGEBITS)
 {
@@ -204,7 +207,7 @@ DeviceMemoryManager<Traits>::DeviceMemoryManager(const IDeviceMemory & device_me
         continuity_tracker[i] = 1;
         cpu_backing_address[i] = 0;
     }
-    const size_t total_phys = 1ULL << ((Settings::values.memory_layout_mode.GetValue() == Settings::MemoryLayout::Memory_4Gb ? physical_min_bits : physical_max_bits) - DEVICE_PAGEBITS);
+    const size_t total_phys = 1ULL << ((g_settings->GetInt(NXOsSetting::MemoryLayout) == (int32_t)MemoryLayout::Memory_4Gb ? physical_min_bits : physical_max_bits) - DEVICE_PAGEBITS);
     for (size_t i = 0; i < total_phys; i++)
     {
         compressed_device_addr[i] = 0;

@@ -1,12 +1,13 @@
 #pragma once
 
 #include "player_input.h"
+#include "os_types.h"
 #include <array>
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <yuzu_audio_core/audio_types.h>
 #include <yuzu_common/common_types.h>
-#include <yuzu_common/settings_enums.h>
 
 struct TouchFromButtonMap
 {
@@ -17,35 +18,36 @@ struct TouchFromButtonMap
 struct OSSettings
 {
     // Applet
-    Settings::AppletMode cabinet_applet_mode;
-    Settings::AppletMode controller_applet_mode;
-    Settings::AppletMode data_erase_applet_mode;
-    Settings::AppletMode error_applet_mode;
-    Settings::AppletMode net_connect_applet_mode;
-    Settings::AppletMode player_select_applet_mode;
-    Settings::AppletMode swkbd_applet_mode;
-    Settings::AppletMode mii_edit_applet_mode;
-    Settings::AppletMode web_applet_mode;
-    Settings::AppletMode shop_applet_mode;
-    Settings::AppletMode photo_viewer_applet_mode;
-    Settings::AppletMode offline_web_applet_mode;
-    Settings::AppletMode login_share_applet_mode;
-    Settings::AppletMode wifi_web_auth_applet_mode;
-    Settings::AppletMode my_page_applet_mode;
+    AppletMode cabinet_applet_mode;
+    AppletMode controller_applet_mode;
+    AppletMode data_erase_applet_mode;
+    AppletMode error_applet_mode;
+    AppletMode net_connect_applet_mode;
+    AppletMode player_select_applet_mode;
+    AppletMode swkbd_applet_mode;
+    AppletMode mii_edit_applet_mode;
+    AppletMode web_applet_mode;
+    AppletMode shop_applet_mode;
+    AppletMode photo_viewer_applet_mode;
+    AppletMode offline_web_applet_mode;
+    AppletMode login_share_applet_mode;
+    AppletMode wifi_web_auth_applet_mode;
+    AppletMode my_page_applet_mode;
 
     // Audio
-    Settings::AudioEngine sink_id;
+    AudioCore::Sink::AudioEngine sink_id;
     std::string audio_output_device_id;
     std::string audio_input_device_id;
-    Settings::AudioMode sound_index;
+    AudioMode sound_index;
     u8 volume;
     bool audio_muted;
     bool dump_audio_commands;
 
     // System
-    Settings::Language language_index;
-    Settings::Region region_index;
-    Settings::TimeZone time_zone_index;
+    Language language_index;
+    Region region_index;
+    TimeZone time_zone_index;
+    MemoryLayout memory_layout_mode;
     bool custom_rtc_enabled;
     s64 custom_rtc;
     s64 custom_rtc_offset;
@@ -53,7 +55,7 @@ struct OSSettings
     u32 rng_seed;
     std::string device_name;
     s32 current_user;
-    Settings::DockedMode use_docked_mode;
+    DockedMode use_docked_mode;
     bool use_multi_core;
     bool use_speed_limit;
     u16 speed_limit;

@@ -7,7 +7,6 @@
 #include <string>
 
 #include "yuzu_common/common_types.h"
-#include "yuzu_common/settings_enums.h"
 #include "frontend/emu_window.h"
 #include "yuzu_shader_recompiler/stage.h"
 

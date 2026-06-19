@@ -12,6 +12,7 @@ namespace NXOsSetting
     constexpr const char * UseMultiCore = "nxos:UseMultiCore";
     constexpr const char * UseSpeedLimit = "nxos:UseSpeedLimit";
     constexpr const char * DockedMode = "nxos:DockedMode";
+    constexpr const char * MemoryLayout = "nxos:MemoryLayout";
     constexpr const char * LanguageIndex = "nxos:LanguageIndex";
     constexpr const char * CurrentUser = "nxos:CurrentUser";
     constexpr const char * RngSeedEnabled = "nxos:RngSeedEnabled";

@@ -117,26 +117,6 @@ enum class AspectRatio : uint32_t
     Stretch,
 };
 
-enum class VideoSettingTranslationType : uint32_t
-{
-    RendererBackend = 0,
-    ShaderBackend,
-    AstcDecodeMode,
-    VSyncMode,
-    NvdecEmulation,
-    FullscreenMode,
-    AspectRatio,
-    ResolutionSetup,
-    ScalingFilter,
-    AntiAliasing,
-    GpuAccuracy,
-    AnisotropyMode,
-    AstcRecompression,
-    VramUsageMode,
-
-    VulkanDevice = 10000,
-};
-
 nxinterface IMemory;
 
 struct VideoFramebufferConfig 

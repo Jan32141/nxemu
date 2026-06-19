@@ -12,6 +12,7 @@
 #include "core/hle/service/cmif_serialization.h"
 #include "core/hle/service/sm/sm.h"
 #include "os_settings.h"
+#include "os_types.h"
 
 namespace Service::AM
 {
@@ -23,7 +24,7 @@ bool ShouldCreateGuestApplet(AppletId applet_id)
 {
 #define X(Name, name)                                               \
     if (applet_id == AppletId::Name &&                              \
-        osSettings.name##_applet_mode != Settings::AppletMode::LLE) \
+        osSettings.name##_applet_mode != AppletMode::LLE) \
     {                                                               \
         return false;                                               \
     }

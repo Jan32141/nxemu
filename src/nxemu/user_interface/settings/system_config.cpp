@@ -14,8 +14,10 @@
 #include <sciter_handler.h>
 #include <widgets/page_nav.h>
 #include <widgets/list_box.h>
+#include <nxemu-module-spec/operating_system.h>
 #include <nxemu-module-spec/video.h>
-#include <yuzu_common/settings_enums.h>
+#include <nxemu-os/os_types.h>
+#include <yuzu_audio_core/audio_types.h>
 #include <nxemu-core/modules/system_modules.h>
 #include <nxemu-core/settings/core_settings.h>
 
@@ -369,43 +371,43 @@ void SystemConfig::InitializeTranslations()
         return;
     }
 
-    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::RendererBackend, {
+    m_settingTranslations.insert({ TranslationType::RendererBackend, {
         {(uint32_t)RendererBackend::OpenGL, "OpenGL"},
         {(uint32_t)RendererBackend::Vulkan, "Vulkan"},
         {(uint32_t)RendererBackend::Null, "Null"},
     }});
 
-    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::ShaderBackend, {
+    m_settingTranslations.insert({ TranslationType::ShaderBackend, {
         {(uint32_t)ShaderBackend::Glsl, "GLSL"},
         {(uint32_t)ShaderBackend::Glasm, "GLASM (Assembly Shaders, NVIDIA Only)"},
         {(uint32_t)ShaderBackend::SpirV, "SPIR-V (Experimental, AMD/Mesa Only)"},
     }});
 
-    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::AstcDecodeMode, {
+    m_settingTranslations.insert({ TranslationType::AstcDecodeMode, {
         {(uint32_t)AstcDecodeMode::Cpu, "CPU"},
         {(uint32_t)AstcDecodeMode::Gpu, "GPU"},
         {(uint32_t)AstcDecodeMode::CpuAsynchronous, "CPU Asynchronous"},
     }});
 
-    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::NvdecEmulation, {
+    m_settingTranslations.insert({ TranslationType::NvdecEmulation, {
         {(uint32_t)NvdecEmulation::Off, "No Video Output"},
         {(uint32_t)NvdecEmulation::Cpu, "CPU Video Decoding"},
         {(uint32_t)NvdecEmulation::Gpu, "GPU Video Decoding (Default)"},
     }});
 
-    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::FullscreenMode, {
+    m_settingTranslations.insert({ TranslationType::FullscreenMode, {
         {(uint32_t)FullscreenMode::Borderless, "Borderless Windowed"},
         {(uint32_t)FullscreenMode::Exclusive, "Exclusive Fullscreen"},
     }});
 
-    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::AspectRatio, {
+    m_settingTranslations.insert({ TranslationType::AspectRatio, {
         {(uint32_t)AspectRatio::R16_9, "Default (16:9)"},
         {(uint32_t)AspectRatio::R4_3, "Force 4:3"},
         {(uint32_t)AspectRatio::R21_9, "Force 21:9"},
         {(uint32_t)AspectRatio::R16_10, "Force 16:10"},
         {(uint32_t)AspectRatio::Stretch, "Stretch to Window"},
     }});
-    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::ResolutionSetup, {
+    m_settingTranslations.insert({ TranslationType::ResolutionSetup, {
         {(uint32_t)ResolutionSetup::Res1_2X, "0.5X (360p/540p) [EXPERIMENTAL]"},
         {(uint32_t)ResolutionSetup::Res3_4X, "0.75X (540p/810p) [EXPERIMENTAL]"},
         {(uint32_t)ResolutionSetup::Res1X, "1X (720p/1080p)"},
@@ -418,7 +420,7 @@ void SystemConfig::InitializeTranslations()
         {(uint32_t)ResolutionSetup::Res7X, "7X (5040p/7560p)"},
         {(uint32_t)ResolutionSetup::Res8X, "8X (5760p/8640p)"},
     }});
-    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::ScalingFilter, {
+    m_settingTranslations.insert({ TranslationType::ScalingFilter, {
         {(uint32_t)ScalingFilter::NearestNeighbor, "Nearest Neighbor"},
         {(uint32_t)ScalingFilter::Bilinear, "Bilinear"},
         {(uint32_t)ScalingFilter::Bicubic, "Bicubic"},
@@ -426,17 +428,17 @@ void SystemConfig::InitializeTranslations()
         {(uint32_t)ScalingFilter::ScaleForce, "ScaleForce"},
         {(uint32_t)ScalingFilter::Fsr, "AMD FidelityFX Super Resolution"},
     }});
-    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::AntiAliasing, {
+    m_settingTranslations.insert({ TranslationType::AntiAliasing, {
         {(uint32_t)AntiAliasing::None, "None"},
         {(uint32_t)AntiAliasing::Fxaa, "FXAA"},
         {(uint32_t)AntiAliasing::Smaa, "SMAA"},
     }});
-    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::GpuAccuracy, {
+    m_settingTranslations.insert({ TranslationType::GpuAccuracy, {
         {(uint32_t)GpuAccuracy::Normal, "Normal"},
         {(uint32_t)GpuAccuracy::High, "High"},
         {(uint32_t)GpuAccuracy::Extreme, "Extreme"},
     }});
-    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::AnisotropyMode, {
+    m_settingTranslations.insert({ TranslationType::AnisotropyMode, {
         {(uint32_t)AnisotropyMode::Automatic, "Automatic"},
         {(uint32_t)AnisotropyMode::Default, "Default"},
         {(uint32_t)AnisotropyMode::X2, "2x"},
@@ -444,12 +446,12 @@ void SystemConfig::InitializeTranslations()
         {(uint32_t)AnisotropyMode::X8, "8x"},
         {(uint32_t)AnisotropyMode::X16, "16x"},
     }});
-    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::AstcRecompression, {
+    m_settingTranslations.insert({ TranslationType::AstcRecompression, {
         {(uint32_t)AstcRecompression::Uncompressed, "Uncompressed (Best quality)"},
         {(uint32_t)AstcRecompression::Bc1, "BC1 (Low quality)"},
         {(uint32_t)AstcRecompression::Bc3, "BC3 (Medium quality)"},
     }});
-    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::VramUsageMode, {
+    m_settingTranslations.insert({ TranslationType::VramUsageMode, {
         {(uint32_t)VramUsageMode::Conservative, "Conservative"},
         {(uint32_t)VramUsageMode::Aggressive, "Aggressive"},
     }});
@@ -458,16 +460,45 @@ void SystemConfig::InitializeTranslations()
     {
         vulkanDeviceTranslations.push_back({ (int32_t)i, m_vkDeviceRecords[i].name });
     }
-    m_settingTranslations.insert({ (uint32_t)VideoSettingTranslationType::VulkanDevice, vulkanDeviceTranslations });
+    m_settingTranslations.insert({ TranslationType::VulkanDevice, vulkanDeviceTranslations });
 
-    m_settingTranslations.insert({ Settings::EnumMetadata<Settings::AudioMode>::Index(), {
-        {(uint32_t)Settings::AudioMode::Mono, "Mono"},
-        {(uint32_t)Settings::AudioMode::Stereo, "Stereo"},
-        {(uint32_t)Settings::AudioMode::Surround, "Surround"},
+    m_settingTranslations.insert({ TranslationType::AudioEngine, {
+        {(int32_t)AudioCore::Sink::AudioEngine::Auto, "Auto"},
+        {(int32_t)AudioCore::Sink::AudioEngine::Cubeb, "Cubeb"},
+        {(int32_t)AudioCore::Sink::AudioEngine::Sdl2, "SDL2"},
+        {(int32_t)AudioCore::Sink::AudioEngine::Null, "Null"},
+        {(int32_t)AudioCore::Sink::AudioEngine::Oboe, "Oboe"},
     }});
 
-    m_settingTranslations.insert({Settings::EnumMetadata<Settings::DockedMode>::Index(), {
-        {(uint32_t)Settings::DockedMode::Handheld, "Handheld"},
-        {(uint32_t)Settings::DockedMode::Docked, "Docked"},
+    m_settingTranslations.insert({ TranslationType::AudioMode, {
+        {(int32_t)AudioMode::Mono, "Mono"},
+        {(int32_t)AudioMode::Stereo, "Stereo"},
+        {(int32_t)AudioMode::Surround, "Surround"},
     }});
+
+    m_settingTranslations.insert({ TranslationType::DockedMode, {
+        {(uint32_t)DockedMode::Handheld, "Handheld"},
+        {(uint32_t)DockedMode::Docked, "Docked"},
+    }});
+}
+
+const char * SystemConfig::GetSettingLabel(TranslationType translationType, int32_t value) const
+{
+    const auto itr = m_settingTranslations.find(translationType);
+    if (itr == m_settingTranslations.end())
+    {
+        return "";
+    }
+    for (const SettingTranslation & entry : itr->second)
+    {
+        if (entry.first == value)
+        {
+            return entry.second.c_str();
+        }
+    }
+    if (!itr->second.empty())
+    {
+        return itr->second.front().second.c_str();
+    }
+    return "";
 }

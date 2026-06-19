@@ -607,6 +607,7 @@
     <ClInclude Include="sink\sdl2_sink.h">
       <Filter>sink</Filter>
     </ClInclude>
+    <ClInclude Include="audio_types.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="adsp">

@@ -3,9 +3,8 @@
 
 #include <random>
 
+#include "os_settings.h"
 #include "yuzu_common/literals.h"
-#include "yuzu_common/settings.h"
-
 #include "core/hle/kernel/board/nintendo/nx/k_system_control.h"
 #include "core/hle/kernel/board/nintendo/nx/secure_monitor.h"
 #include "core/hle/kernel/k_memory_manager.h"
@@ -41,24 +40,24 @@ namespace {
 using namespace Common::Literals;
 
 u32 GetMemorySizeForInit() {
-    switch (Settings::values.memory_layout_mode.GetValue()) {
-    case Settings::MemoryLayout::Memory_4Gb:
+    switch (osSettings.memory_layout_mode) {
+    case MemoryLayout::Memory_4Gb:
         return Smc::MemorySize_4GB;
-    case Settings::MemoryLayout::Memory_6Gb:
+    case MemoryLayout::Memory_6Gb:
         return Smc::MemorySize_6GB;
-    case Settings::MemoryLayout::Memory_8Gb:
+    case MemoryLayout::Memory_8Gb:
         return Smc::MemorySize_8GB;
     }
     return Smc::MemorySize_4GB;
 }
 
 Smc::MemoryArrangement GetMemoryArrangeForInit() {
-    switch (Settings::values.memory_layout_mode.GetValue()) {
-    case Settings::MemoryLayout::Memory_4Gb:
+    switch (osSettings.memory_layout_mode) {
+    case MemoryLayout::Memory_4Gb:
         return Smc::MemoryArrangement_4GB;
-    case Settings::MemoryLayout::Memory_6Gb:
+    case MemoryLayout::Memory_6Gb:
         return Smc::MemoryArrangement_6GB;
-    case Settings::MemoryLayout::Memory_8Gb:
+    case MemoryLayout::Memory_8Gb:
         return Smc::MemoryArrangement_8GB;
     }
     return Smc::MemoryArrangement_4GB;

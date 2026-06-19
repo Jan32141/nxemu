@@ -2,6 +2,19 @@
 #include "base.h"
 #include <stdint.h>
 
+enum class DockedMode : uint32_t
+{
+    Handheld = 0,
+    Docked,
+};
+
+enum class MemoryLayout : uint32_t
+{
+    Memory_4Gb = 0,
+    Memory_6Gb,
+    Memory_8Gb,
+};
+
 typedef struct CabinetParameters
 {
     uint8_t tag_info[0x58];

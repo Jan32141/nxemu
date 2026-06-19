@@ -2,7 +2,6 @@
 #include "config_setting.h"
 #include "system_config.h"
 #include <common/std_string.h>
-#include <yuzu_common/settings_enums.h>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu-video/video_settings_identifiers.h>
 #include <nxemu-module-spec/video.h>
@@ -11,26 +10,26 @@
 namespace 
 {
     static ConfigSetting graphicsSettings[] = {
-        ConfigSetting(ConfigSetting::ComboBox, "GraphicsAPI", false, (uint32_t)VideoSettingTranslationType::RendererBackend, NXVideoSetting::GraphicsAPI),
-        ConfigSetting(ConfigSetting::ComboBox, "ShaderBackend", false, (uint32_t)VideoSettingTranslationType::ShaderBackend, NXVideoSetting::ShaderBackend),
-        ConfigSetting(ConfigSetting::ComboBox, "VulkanDevices", false, (uint32_t)VideoSettingTranslationType::VulkanDevice, NXVideoSetting::VulkanDevice),
+        ConfigSetting(ConfigSetting::ComboBox, "GraphicsAPI", false, SystemConfig::TranslationType::RendererBackend, NXVideoSetting::GraphicsAPI),
+        ConfigSetting(ConfigSetting::ComboBox, "ShaderBackend", false, SystemConfig::TranslationType::ShaderBackend, NXVideoSetting::ShaderBackend),
+        ConfigSetting(ConfigSetting::ComboBox, "VulkanDevices", false, SystemConfig::TranslationType::VulkanDevice, NXVideoSetting::VulkanDevice),
         ConfigSetting(ConfigSetting::CheckBox, "UseDiskPipelineCache", false, NXVideoSetting::UseDiskPipelineCache),
         ConfigSetting(ConfigSetting::CheckBox, "UseAsynchronousGPUEmulation", false, NXVideoSetting::UseAsynchronousGPUEmulation),
-        ConfigSetting(ConfigSetting::ComboBox, "AstcDecodeMode", false, (uint32_t)VideoSettingTranslationType::AstcDecodeMode, NXVideoSetting::AstcDecodeMode),
-        ConfigSetting(ConfigSetting::ComboBox, "VSyncMode", true, (uint32_t)VideoSettingTranslationType::VSyncMode, NXVideoSetting::VSyncMode),
-        ConfigSetting(ConfigSetting::ComboBox, "NvdecEmulation", false, (uint32_t)VideoSettingTranslationType::NvdecEmulation, NXVideoSetting::NvdecEmulation),
-        ConfigSetting(ConfigSetting::ComboBox, "AspectRatio", true, (uint32_t)VideoSettingTranslationType::AspectRatio, NXVideoSetting::AspectRatio),
-        ConfigSetting(ConfigSetting::ComboBox, "ResolutionSetup", false, (uint32_t)VideoSettingTranslationType::ResolutionSetup, NXVideoSetting::ResolutionSetup),
-        ConfigSetting(ConfigSetting::ComboBox, "ScalingFilter", true, (uint32_t)VideoSettingTranslationType::ScalingFilter, NXVideoSetting::ScalingFilter),
-        ConfigSetting(ConfigSetting::ComboBox, "AntiAliasing", true, (uint32_t)VideoSettingTranslationType::AntiAliasing, NXVideoSetting::AntiAliasing),
+        ConfigSetting(ConfigSetting::ComboBox, "AstcDecodeMode", false, SystemConfig::TranslationType::AstcDecodeMode, NXVideoSetting::AstcDecodeMode),
+        ConfigSetting(ConfigSetting::ComboBox, "VSyncMode", true, SystemConfig::TranslationType::VSyncMode, NXVideoSetting::VSyncMode),
+        ConfigSetting(ConfigSetting::ComboBox, "NvdecEmulation", false, SystemConfig::TranslationType::NvdecEmulation, NXVideoSetting::NvdecEmulation),
+        ConfigSetting(ConfigSetting::ComboBox, "AspectRatio", true, SystemConfig::TranslationType::AspectRatio, NXVideoSetting::AspectRatio),
+        ConfigSetting(ConfigSetting::ComboBox, "ResolutionSetup", false, SystemConfig::TranslationType::ResolutionSetup, NXVideoSetting::ResolutionSetup),
+        ConfigSetting(ConfigSetting::ComboBox, "ScalingFilter", true, SystemConfig::TranslationType::ScalingFilter, NXVideoSetting::ScalingFilter),
+        ConfigSetting(ConfigSetting::ComboBox, "AntiAliasing", true, SystemConfig::TranslationType::AntiAliasing, NXVideoSetting::AntiAliasing),
         ConfigSetting(ConfigSetting::Slider, "FSPSharpness", true, NXVideoSetting::FSPSharpness),
     };
 
     static ConfigSetting advancedSettings[] = {
-        ConfigSetting(ConfigSetting::ComboBox, "AccuracyLevel", true, (uint32_t)VideoSettingTranslationType::GpuAccuracy, NXVideoSetting::AccuracyLevel),
-        ConfigSetting(ConfigSetting::ComboBox, "AnisotropicFiltering", false, (uint32_t)VideoSettingTranslationType::AnisotropyMode, NXVideoSetting::AnisotropicFiltering),
-        ConfigSetting(ConfigSetting::ComboBox, "ASTCRecompressionMethod", false, (uint32_t)VideoSettingTranslationType::AstcRecompression, NXVideoSetting::ASTCRecompressionMethod),
-        ConfigSetting(ConfigSetting::ComboBox, "VRAMUsageMode", false, (uint32_t)VideoSettingTranslationType::VramUsageMode, NXVideoSetting::VRAMUsageMode),
+        ConfigSetting(ConfigSetting::ComboBox, "AccuracyLevel", true, SystemConfig::TranslationType::GpuAccuracy, NXVideoSetting::AccuracyLevel),
+        ConfigSetting(ConfigSetting::ComboBox, "AnisotropicFiltering", false, SystemConfig::TranslationType::AnisotropyMode, NXVideoSetting::AnisotropicFiltering),
+        ConfigSetting(ConfigSetting::ComboBox, "ASTCRecompressionMethod", false, SystemConfig::TranslationType::AstcRecompression, NXVideoSetting::ASTCRecompressionMethod),
+        ConfigSetting(ConfigSetting::ComboBox, "VRAMUsageMode", false, SystemConfig::TranslationType::VramUsageMode, NXVideoSetting::VRAMUsageMode),
         ConfigSetting(ConfigSetting::CheckBox, "EnableAsynchronousPresentation", false, NXVideoSetting::EnableAsynchronousPresentation),
         ConfigSetting(ConfigSetting::CheckBox, "ForceMaximumClocks", false, NXVideoSetting::ForceMaximumClocks),
         ConfigSetting(ConfigSetting::CheckBox, "EnableReactiveFlushing", false, NXVideoSetting::EnableReactiveFlushing),

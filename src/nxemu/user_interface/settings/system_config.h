@@ -2,6 +2,8 @@
 #include <sciter_handler.h>
 #include <widgets/page_nav.h>
 #include <map>
+#include <string>
+#include <utility>
 #include <vector>
 #include "startup_checks.h"
 
@@ -15,21 +17,47 @@ class SystemConfigSystem;
 class ConfigSetting;
 class SystemModules;
 
-typedef std::pair<int32_t, std::string> SettingTranslation;
-typedef std::vector<SettingTranslation> SettingTranslationList;
-typedef std::map<uint32_t, SettingTranslationList> SettingTranslationMap;
-
 class SystemConfig :
     public IPagesSink,
     public IClickSink
 {
 public:
+    enum class TranslationType : uint32_t
+    {
+        None = 0,
+        RendererBackend,
+        ShaderBackend,
+        AstcDecodeMode,
+        VSyncMode,
+        NvdecEmulation,
+        FullscreenMode,
+        AspectRatio,
+        ResolutionSetup,
+        ScalingFilter,
+        AntiAliasing,
+        GpuAccuracy,
+        AnisotropyMode,
+        AstcRecompression,
+        VramUsageMode,
+
+        VulkanDevice = 10000,
+
+        AudioEngine,
+        AudioMode,
+        DockedMode,
+    };
+
+    using SettingTranslation = std::pair<int32_t, std::string>;
+    using SettingTranslationList = std::vector<SettingTranslation>;
+    using SettingTranslationMap = std::map<TranslationType, SettingTranslationList>;
+
     SystemConfig(ISciterUI & SciterUI, SystemModules & modules, std::vector<VkDeviceRecord> & vkDeviceRecords);
     ~SystemConfig();
 
     void Display(void * parentWindow, const char * startPage);
     void SavePage(SCITER_ELEMENT pageElement, const ConfigSetting * settings, size_t settingsCount);
-    void SetupPage(SCITER_ELEMENT pageElement, const ConfigSetting * settings, size_t settingsCount);    
+    void SetupPage(SCITER_ELEMENT pageElement, const ConfigSetting * settings, size_t settingsCount);
+    const char * GetSettingLabel(TranslationType translationType, int32_t value) const;
 
     // IPagesSink
     bool PageNavChangeFrom(const std::string & pageName, SCITER_ELEMENT pageNav) override;

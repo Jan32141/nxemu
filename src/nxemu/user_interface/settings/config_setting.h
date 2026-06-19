@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include "system_config.h"
 
 enum class ConfigSettingType { ListBox, ComboBox, ComboBoxValue, CheckBox, Slider, InputText };
 
@@ -32,7 +33,7 @@ public:
     };
 
     ConfigSetting(TYPE_LIST type, const char * elementId, bool canChangeWhenRunning, const char * storeSettingId);
-    ConfigSetting(TYPE_COMBOBOX type, const char * elementId, bool canChangeWhenRunning, uint32_t settingIndex, const char * storeSettingId);
+    ConfigSetting(TYPE_COMBOBOX type, const char * elementId, bool canChangeWhenRunning, SystemConfig::TranslationType settingIndex, const char * storeSettingId);
     ConfigSetting(TYPE_COMBOBOXVALUE type, const char * elementId, bool canChangeWhenRunning, const char * storeSettingId);
     ConfigSetting(TYPE_CHECKBOX type, const char * elementId, bool canChangeWhenRunning, const char * storeSettingId);
     ConfigSetting(TYPE_SLIDER type, const char * elementId, bool canChangeWhenRunning, const char * storeSettingId);
@@ -41,13 +42,13 @@ public:
     bool CanChangeWhenRunning() const;
     ConfigSettingType Type() const;
     const char * ElementId() const;
-    uint32_t SettingIndex() const;
+    SystemConfig::TranslationType SettingIndex() const;
     const char * StoreSettingId() const;
 
 private:
     ConfigSettingType m_type;
     std::string m_elementId;
     bool m_canChangeWhenRunning;
-    uint32_t m_settingIndex;
+    SystemConfig::TranslationType m_settingIndex;
     std::string m_storeSettingId;
 };

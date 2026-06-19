@@ -13,7 +13,6 @@
 #include <fmt/core.h>
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/settings_common.h"
-#include "yuzu_common/settings_enums.h"
 
 namespace Settings {
 
@@ -116,9 +115,6 @@ protected:
             return value_.has_value() ? std::to_string(*value_) : "none";
         } else if constexpr (std::is_same_v<Type, bool>) {
             return value_ ? "true" : "false";
-        } else if constexpr (std::is_same_v<Type, AudioEngine>) {
-            // Compatibility with old AudioEngine setting being a string
-            return CanonicalizeEnum(value_);
         } else if constexpr (std::is_floating_point_v<Type>) {
             return fmt::format("{:f}", value_);
         } else if constexpr (std::is_enum_v<Type>) {
@@ -190,8 +186,6 @@ public:
                 this->SetValue(input == "true");
             } else if constexpr (std::is_same_v<Type, float>) {
                 this->SetValue(std::stof(input));
-            } else if constexpr (std::is_same_v<Type, AudioEngine>) {
-                this->SetValue(ToEnum<AudioEngine>(input));
             } else {
                 this->SetValue(static_cast<Type>(std::stoll(input)));
             }
@@ -203,11 +197,7 @@ public:
     }
 
     [[nodiscard]] std::string Canonicalize() const override final {
-        if constexpr (std::is_enum_v<Type>) {
-            return CanonicalizeEnum(this->GetValue());
-        } else {
-            return ToString(this->GetValue());
-        }
+        return ToString(this->GetValue());
     }
 
     /**
@@ -221,7 +211,7 @@ public:
 
     [[nodiscard]] constexpr u32 EnumIndex() const override final {
         if constexpr (std::is_enum_v<Type>) {
-            return EnumMetadata<Type>::Index();
+            return static_cast<u32>(GetValue());
         } else {
             return std::numeric_limits<u32>::max();
         }

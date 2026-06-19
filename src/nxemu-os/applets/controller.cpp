@@ -3,10 +3,10 @@
 
 #include "applets/controller.h"
 #include "os_settings_identifiers.h"
-#include <nxemu-module-spec/base.h>
+#include <nxemu-module-spec/operating_system.h>
+#include "nxemu-os/os_settings.h"
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/settings.h"
-#include "yuzu_common/settings_enums.h"
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_hid_core/frontend/emulated_controller.h"
 #include "yuzu_hid_core/hid_core.h"
@@ -87,7 +87,7 @@ void DefaultControllerApplet::ReconfigureControllers(void * user_data, Controlle
                 controller->Connect(true);
             }
         }
-        else if (index == 0 && parameters->enable_single_mode && parameters->allow_handheld && g_settings->GetInt(NXOsSetting::DockedMode) != static_cast<int32_t>(Settings::DockedMode::Docked))
+        else if (index == 0 && parameters->enable_single_mode && parameters->allow_handheld && g_settings->GetInt(NXOsSetting::DockedMode) != static_cast<int32_t>(DockedMode::Docked))
         {
             // We should *never* reach here under any normal circumstances.
             controller->SetNpadStyleIndex(NpadStyleIndex::Handheld);

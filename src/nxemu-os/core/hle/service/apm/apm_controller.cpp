@@ -7,11 +7,11 @@
 
 #include "core/core_timing.h"
 #include "core/hle/service/apm/apm_controller.h"
+#include "os_settings.h"
 #include "os_settings_identifiers.h"
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/settings.h"
-#include "yuzu_common/settings_enums.h"
-#include <nxemu-module-spec/base.h>
+#include <nxemu-module-spec/operating_system.h>
 
 extern IModuleSettings * g_settings;
 
@@ -78,7 +78,7 @@ void Controller::SetFromCpuBoostMode(CpuBoostMode mode)
 
 PerformanceMode Controller::GetCurrentPerformanceMode() const
 {
-    const bool docked = g_settings->GetInt(NXOsSetting::DockedMode) == static_cast<int32_t>(Settings::DockedMode::Docked);
+    const bool docked = g_settings->GetInt(NXOsSetting::DockedMode) == static_cast<int32_t>(DockedMode::Docked);
     return docked ? PerformanceMode::Boost : PerformanceMode::Normal;
 }
 

@@ -34,106 +34,124 @@ ControllerType ControllerTypeFromString(std::string_view str)
     return ControllerType::ProController;
 }
 
-const char* AudioEngineToString(Settings::AudioEngine value)
+const char* AudioEngineToString(AudioCore::Sink::AudioEngine value)
 {
     switch (value) {
-    case Settings::AudioEngine::Auto: return "auto";
-    case Settings::AudioEngine::Cubeb: return "cubeb";
-    case Settings::AudioEngine::Sdl2: return "sdl2";
-    case Settings::AudioEngine::Null: return "null";
-    case Settings::AudioEngine::Oboe: return "oboe";
+    case AudioCore::Sink::AudioEngine::Auto: return "auto";
+    case AudioCore::Sink::AudioEngine::Cubeb: return "cubeb";
+    case AudioCore::Sink::AudioEngine::Sdl2: return "sdl2";
+    case AudioCore::Sink::AudioEngine::Null: return "null";
+    case AudioCore::Sink::AudioEngine::Oboe: return "oboe";
     }
     return "auto";
 }
 
-Settings::AudioEngine AudioEngineFromString(std::string_view str)
+AudioCore::Sink::AudioEngine AudioEngineFromString(std::string_view str)
 {
-    if (str == "auto") return Settings::AudioEngine::Auto;
-    if (str == "cubeb") return Settings::AudioEngine::Cubeb;
-    if (str == "sdl2") return Settings::AudioEngine::Sdl2;
-    if (str == "null") return Settings::AudioEngine::Null;
-    if (str == "oboe") return Settings::AudioEngine::Oboe;
-    return Settings::AudioEngine::Auto;
+    if (str == "auto") return AudioCore::Sink::AudioEngine::Auto;
+    if (str == "cubeb") return AudioCore::Sink::AudioEngine::Cubeb;
+    if (str == "sdl2") return AudioCore::Sink::AudioEngine::Sdl2;
+    if (str == "null") return AudioCore::Sink::AudioEngine::Null;
+    if (str == "oboe") return AudioCore::Sink::AudioEngine::Oboe;
+    return AudioCore::Sink::AudioEngine::Auto;
 }
 
-const char* AudioModeToString(Settings::AudioMode value)
+const char* AudioModeToString(AudioMode value)
 {
     switch (value) {
-    case Settings::AudioMode::Mono: return "Mono";
-    case Settings::AudioMode::Stereo: return "Stereo";
-    case Settings::AudioMode::Surround: return "Surround";
+    case AudioMode::Mono: return "Mono";
+    case AudioMode::Stereo: return "Stereo";
+    case AudioMode::Surround: return "Surround";
     }
     return "Stereo";
 }
 
-Settings::AudioMode AudioModeFromString(std::string_view str)
+AudioMode AudioModeFromString(std::string_view str)
 {
-    if (str == "Mono") return Settings::AudioMode::Mono;
-    if (str == "Stereo") return Settings::AudioMode::Stereo;
-    if (str == "Surround") return Settings::AudioMode::Surround;
-    return Settings::AudioMode::Stereo;
+    if (str == "Mono") return AudioMode::Mono;
+    if (str == "Stereo") return AudioMode::Stereo;
+    if (str == "Surround") return AudioMode::Surround;
+    return AudioMode::Stereo;
 }
 
-const char* LanguageToString(Settings::Language value)
+const char* LanguageToString(Language value)
 {
     switch (value) {
-    case Settings::Language::Japanese: return "Japanese";
-    case Settings::Language::EnglishAmerican: return "EnglishAmerican";
-    case Settings::Language::French: return "French";
-    case Settings::Language::German: return "German";
-    case Settings::Language::Italian: return "Italian";
-    case Settings::Language::Spanish: return "Spanish";
-    case Settings::Language::Chinese: return "Chinese";
-    case Settings::Language::Korean: return "Korean";
-    case Settings::Language::Dutch: return "Dutch";
-    case Settings::Language::Portuguese: return "Portuguese";
-    case Settings::Language::Russian: return "Russian";
-    case Settings::Language::Taiwanese: return "Taiwanese";
-    case Settings::Language::EnglishBritish: return "EnglishBritish";
-    case Settings::Language::FrenchCanadian: return "FrenchCanadian";
-    case Settings::Language::SpanishLatin: return "SpanishLatin";
-    case Settings::Language::ChineseSimplified: return "ChineseSimplified";
-    case Settings::Language::ChineseTraditional: return "ChineseTraditional";
-    case Settings::Language::PortugueseBrazilian: return "PortugueseBrazilian";
+    case Language::Japanese: return "Japanese";
+    case Language::EnglishAmerican: return "EnglishAmerican";
+    case Language::French: return "French";
+    case Language::German: return "German";
+    case Language::Italian: return "Italian";
+    case Language::Spanish: return "Spanish";
+    case Language::Chinese: return "Chinese";
+    case Language::Korean: return "Korean";
+    case Language::Dutch: return "Dutch";
+    case Language::Portuguese: return "Portuguese";
+    case Language::Russian: return "Russian";
+    case Language::Taiwanese: return "Taiwanese";
+    case Language::EnglishBritish: return "EnglishBritish";
+    case Language::FrenchCanadian: return "FrenchCanadian";
+    case Language::SpanishLatin: return "SpanishLatin";
+    case Language::ChineseSimplified: return "ChineseSimplified";
+    case Language::ChineseTraditional: return "ChineseTraditional";
+    case Language::PortugueseBrazilian: return "PortugueseBrazilian";
     }
     return "EnglishAmerican";
 }
 
-Settings::Language LanguageFromString(std::string_view str)
+Language LanguageFromString(std::string_view str)
 {
-    if (str == "Japanese") return Settings::Language::Japanese;
-    if (str == "EnglishAmerican") return Settings::Language::EnglishAmerican;
-    if (str == "French") return Settings::Language::French;
-    if (str == "German") return Settings::Language::German;
-    if (str == "Italian") return Settings::Language::Italian;
-    if (str == "Spanish") return Settings::Language::Spanish;
-    if (str == "Chinese") return Settings::Language::Chinese;
-    if (str == "Korean") return Settings::Language::Korean;
-    if (str == "Dutch") return Settings::Language::Dutch;
-    if (str == "Portuguese") return Settings::Language::Portuguese;
-    if (str == "Russian") return Settings::Language::Russian;
-    if (str == "Taiwanese") return Settings::Language::Taiwanese;
-    if (str == "EnglishBritish") return Settings::Language::EnglishBritish;
-    if (str == "FrenchCanadian") return Settings::Language::FrenchCanadian;
-    if (str == "SpanishLatin") return Settings::Language::SpanishLatin;
-    if (str == "ChineseSimplified") return Settings::Language::ChineseSimplified;
-    if (str == "ChineseTraditional") return Settings::Language::ChineseTraditional;
-    if (str == "PortugueseBrazilian") return Settings::Language::PortugueseBrazilian;
-    return Settings::Language::EnglishAmerican;
+    if (str == "Japanese") return Language::Japanese;
+    if (str == "EnglishAmerican") return Language::EnglishAmerican;
+    if (str == "French") return Language::French;
+    if (str == "German") return Language::German;
+    if (str == "Italian") return Language::Italian;
+    if (str == "Spanish") return Language::Spanish;
+    if (str == "Chinese") return Language::Chinese;
+    if (str == "Korean") return Language::Korean;
+    if (str == "Dutch") return Language::Dutch;
+    if (str == "Portuguese") return Language::Portuguese;
+    if (str == "Russian") return Language::Russian;
+    if (str == "Taiwanese") return Language::Taiwanese;
+    if (str == "EnglishBritish") return Language::EnglishBritish;
+    if (str == "FrenchCanadian") return Language::FrenchCanadian;
+    if (str == "SpanishLatin") return Language::SpanishLatin;
+    if (str == "ChineseSimplified") return Language::ChineseSimplified;
+    if (str == "ChineseTraditional") return Language::ChineseTraditional;
+    if (str == "PortugueseBrazilian") return Language::PortugueseBrazilian;
+    return Language::EnglishAmerican;
 }
 
-const char* DockedModeToString(Settings::DockedMode value)
+const char* DockedModeToString(DockedMode value)
 {
     switch (value) {
-    case Settings::DockedMode::Handheld: return "Handheld";
-    case Settings::DockedMode::Docked: return "Docked";
+    case DockedMode::Handheld: return "Handheld";
+    case DockedMode::Docked: return "Docked";
     }
     return "Docked";
 }
 
-Settings::DockedMode DockedModeFromString(std::string_view str)
+DockedMode DockedModeFromString(std::string_view str)
 {
-    if (str == "Handheld") return Settings::DockedMode::Handheld;
-    if (str == "Docked") return Settings::DockedMode::Docked;
-    return Settings::DockedMode::Docked;
+    if (str == "Handheld") return DockedMode::Handheld;
+    if (str == "Docked") return DockedMode::Docked;
+    return DockedMode::Docked;
+}
+
+const char* MemoryLayoutToString(MemoryLayout value)
+{
+    switch (value) {
+    case MemoryLayout::Memory_4Gb: return "Memory_4Gb";
+    case MemoryLayout::Memory_6Gb: return "Memory_6Gb";
+    case MemoryLayout::Memory_8Gb: return "Memory_8Gb";
+    }
+    return "Memory_4Gb";
+}
+
+MemoryLayout MemoryLayoutFromString(std::string_view str)
+{
+    if (str == "Memory_4Gb") return MemoryLayout::Memory_4Gb;
+    if (str == "Memory_6Gb") return MemoryLayout::Memory_6Gb;
+    if (str == "Memory_8Gb") return MemoryLayout::Memory_8Gb;
+    return MemoryLayout::Memory_4Gb;
 }

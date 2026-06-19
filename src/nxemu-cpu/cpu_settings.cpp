@@ -7,55 +7,12 @@
 #include <nxemu-module-spec/base.h>
 #include <nxemu-module-spec/cpu.h>
 #include <yuzu_common/logging/log.h>
-#include <yuzu_common/settings_enums.h>
 #include <yuzu_common/settings_setting.h>
 #include <yuzu_common/yuzu_assert.h>
 
 extern IModuleSettings * g_settings;
 
 CpuSettings cpuSettings;
-
-namespace Settings
-{
-
-#define CPU_SETTING_ENUM_METADATA(EnumType, translation_type, ...)                             \
-    template <>                                                                              \
-    std::vector<std::pair<std::string, EnumType>> EnumMetadata<EnumType>::Canonicalizations() { \
-        return {__VA_ARGS__};                                                                \
-    }                                                                                        \
-    template <>                                                                              \
-    u32 EnumMetadata<EnumType>::Index() {                                                    \
-        return static_cast<u32>(translation_type);                                           \
-    }
-
-CPU_SETTING_ENUM_METADATA(
-    CpuBackend, CpuSettingTranslationType::CpuBackend,
-    {CpuBackendToString(CpuBackend::Dynarmic), CpuBackend::Dynarmic},
-    {CpuBackendToString(CpuBackend::Nce), CpuBackend::Nce});
-
-CPU_SETTING_ENUM_METADATA(
-    CpuAccuracy, CpuSettingTranslationType::CpuAccuracy,
-    {CpuAccuracyToString(CpuAccuracy::Auto), CpuAccuracy::Auto},
-    {CpuAccuracyToString(CpuAccuracy::Accurate), CpuAccuracy::Accurate},
-    {CpuAccuracyToString(CpuAccuracy::Unsafe), CpuAccuracy::Unsafe},
-    {CpuAccuracyToString(CpuAccuracy::Paranoid), CpuAccuracy::Paranoid});
-
-#undef CPU_SETTING_ENUM_METADATA
-
-#ifndef CANNOT_EXPLICITLY_INSTANTIATE
-#define SETTING(TYPE, RANGED) template class Setting<TYPE, RANGED>
-#define SWITCHABLE(TYPE, RANGED) template class SwitchableSetting<TYPE, RANGED>
-
-SWITCHABLE(CpuBackend, true);
-SWITCHABLE(CpuAccuracy, true);
-SETTING(bool, false);
-SWITCHABLE(bool, false);
-
-#undef SETTING
-#undef SWITCHABLE
-#endif
-
-} // namespace Settings
 
 namespace
 {
@@ -362,3 +319,12 @@ void SaveCpuSettings(void)
     }
     g_settings->SetSectionSettings("nxemu-cpu", root.isNull() ? "" : JsonStyledWriter().write(root));
 }
+
+namespace Settings {
+#ifndef CANNOT_EXPLICITLY_INSTANTIATE
+template class SwitchableSetting<CpuBackend, true>;
+template class SwitchableSetting<CpuAccuracy, true>;
+template class SwitchableSetting<bool, false>;
+template class Setting<bool, false>;
+#endif
+} // namespace Settings

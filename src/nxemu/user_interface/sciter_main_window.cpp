@@ -47,6 +47,16 @@ const char * RendererBackendLabel(RendererBackend backend)
     return "OpenGL";
 }
 
+const char * DockedModeLabel(DockedMode mode)
+{
+    switch (mode)
+    {
+    case DockedMode::Handheld: return "Handheld";
+    case DockedMode::Docked: return "Docked";
+    }
+    return "Docked";
+}
+
 } // namespace
 
 struct Win32FullscreenState
@@ -548,7 +558,7 @@ void SciterMainWindow::UpdateStatusWidgets()
     SciterElement dockedMode(m_rootElement.GetElementByID("dockedMode"));
     if (dockedMode.IsValid())
     {
-        stdstr_f text("%s", Settings::CanonicalizeEnum((Settings::DockedMode)settings.GetInt(NXOsSetting::DockedMode)).c_str());
+        stdstr_f text("%s", DockedModeLabel((DockedMode)settings.GetInt(NXOsSetting::DockedMode)));
         dockedMode.SetHTML((const uint8_t *)text.c_str(), text.size());
     }
     SciterElement renderer(m_rootElement.GetElementByID("renderer"));
@@ -1332,8 +1342,8 @@ SciterMainWindow::GuiAction SciterMainWindow::HotkeyToGuiAction(const char * hot
 void SciterMainWindow::OnToggleDockedMode()
 {
     SettingsStore & store = SettingsStore::GetInstance();
-    const bool docked = store.GetInt(NXOsSetting::DockedMode) == static_cast<int32_t>(Settings::DockedMode::Docked);
-    store.SetInt(NXOsSetting::DockedMode, static_cast<int32_t>(docked ? Settings::DockedMode::Handheld : Settings::DockedMode::Docked));
+    const bool docked = store.GetInt(NXOsSetting::DockedMode) == static_cast<int32_t>(DockedMode::Docked);
+    store.SetInt(NXOsSetting::DockedMode, static_cast<int32_t>(docked ? DockedMode::Handheld : DockedMode::Docked));
 }
 
 void SciterMainWindow::OnToggleStartGamesInFullscreen()

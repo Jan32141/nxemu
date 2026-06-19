@@ -7,7 +7,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
-#include "yuzu_common/settings_enums.h"
+#include "yuzu_audio_core/audio_types.h"
 
 namespace AudioCore {
 class AudioManager;
@@ -21,7 +21,7 @@ class Sink;
  *
  * @return Vector of available sink names.
  */
-std::vector<Settings::AudioEngine> GetSinkIDs();
+std::vector<AudioEngine> GetSinkIDs();
 
 /**
  * Gets the list of devices for a particular sink identified by the given ID.
@@ -30,7 +30,7 @@ std::vector<Settings::AudioEngine> GetSinkIDs();
  * @param capture - Get capture (input) devices, or output devices?
  * @return Vector of device names.
  */
-std::vector<std::string> GetDeviceListForSink(Settings::AudioEngine sink_id, bool capture);
+std::vector<std::string> GetDeviceListForSink(AudioEngine sink_id, bool capture);
 
 /**
  * Creates an audio sink identified by the given device ID.
@@ -39,7 +39,7 @@ std::vector<std::string> GetDeviceListForSink(Settings::AudioEngine sink_id, boo
  * @param device_id - Name of the device to create.
  * @return Pointer to the created sink.
  */
-std::unique_ptr<Sink> CreateSinkFromID(Settings::AudioEngine sink_id, std::string_view device_id);
+std::unique_ptr<Sink> CreateSinkFromID(AudioEngine sink_id, std::string_view device_id);
 
 } // namespace Sink
 } // namespace AudioCore

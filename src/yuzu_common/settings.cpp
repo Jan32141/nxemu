@@ -1,13 +1,6 @@
 // SPDX-FileCopyrightText: Copyright 2021 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include <version>
-#include "yuzu_common/settings_enums.h"
-#if __cpp_lib_chrono >= 201907L
-#include <chrono>
-#include <exception>
-#include <stdexcept>
-#endif
 #include <compare>
 #include <cstddef>
 #include <filesystem>
@@ -21,26 +14,17 @@
 #include "yuzu_common/fs/path_util.h"
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/settings.h"
-#include "yuzu_common/time_zone.h"
 
 namespace Settings {
 
-// Clang 14 and earlier have errors when explicitly instantiating these classes
 #ifndef CANNOT_EXPLICITLY_INSTANTIATE
 #define SETTING(TYPE, RANGED) template class Setting<TYPE, RANGED>
 #define SWITCHABLE(TYPE, RANGED) template class SwitchableSetting<TYPE, RANGED>
 
-SETTING(AppletMode, false);
-SETTING(AudioEngine, false);
 SETTING(bool, false);
 SETTING(int, false);
 SETTING(std::string, false);
 SETTING(u16, false);
-SWITCHABLE(AudioMode, true);
-SWITCHABLE(Language, true);
-SWITCHABLE(MemoryLayout, true);
-SWITCHABLE(Region, true);
-SWITCHABLE(TimeZone, true);
 SWITCHABLE(bool, false);
 SWITCHABLE(int, false);
 SWITCHABLE(int, true);
@@ -50,46 +34,11 @@ SWITCHABLE(u32, false);
 SWITCHABLE(u8, false);
 SWITCHABLE(u8, true);
 
-// Used in UISettings
-// TODO see if we can move this to uisettings.cpp
-SWITCHABLE(ConfirmStop, true);
-
 #undef SETTING
 #undef SWITCHABLE
 #endif
 
 Values values;
-
-std::string GetTimeZoneString(TimeZone time_zone) {
-    const auto time_zone_index = static_cast<std::size_t>(time_zone);
-    ASSERT(time_zone_index < Common::TimeZone::GetTimeZoneStrings().size());
-
-    std::string location_name;
-    if (time_zone_index == 0) { // Auto
-#if __cpp_lib_chrono >= 201907L && !defined(MINGW)
-        // Disabled for MinGW -- tzdb always returns Etc/UTC
-        try {
-            const struct std::chrono::tzdb& time_zone_data = std::chrono::get_tzdb();
-            const std::chrono::time_zone* current_zone = time_zone_data.current_zone();
-            std::string_view current_zone_name = current_zone->name();
-            location_name = current_zone_name;
-        } catch (std::runtime_error& runtime_error) {
-            // VCRUNTIME will throw a runtime_error if the operating system's selected time zone
-            // cannot be found
-            location_name = Common::TimeZone::FindSystemTimeZone();
-            LOG_WARNING(Common,
-                        "Error occurred when trying to determine system time zone:\n{}\nFalling "
-                        "back to hour offset \"{}\"",
-                        runtime_error.what(), location_name);
-        }
-#else
-        location_name = Common::TimeZone::FindSystemTimeZone();
-#endif
-    } else {
-        location_name = Common::TimeZone::GetTimeZoneStrings()[time_zone_index];
-    }
-    return location_name;
-}
 
 const char* TranslateCategory(Category category) {
     switch (category) {
@@ -159,7 +108,6 @@ const char* TranslateCategory(Category category) {
 }
 
 void RestoreGlobalState(bool is_powered_on) {
-    // If a game is running, DO NOT restore the global settings state
     if (is_powered_on) {
         return;
     }

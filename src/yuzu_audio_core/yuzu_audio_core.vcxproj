@@ -60,6 +60,7 @@
     <ClInclude Include="audio_out_manager.h" />
     <ClCompile Include="audio_manager.cpp" />
     <ClInclude Include="audio_manager.h" />
+    <ClInclude Include="audio_types.h" />
     <ClInclude Include="common\audio_renderer_parameter.h" />
     <ClInclude Include="common\common.h" />
     <ClInclude Include="common\feature_support.h" />

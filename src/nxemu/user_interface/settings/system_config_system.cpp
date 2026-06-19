@@ -4,12 +4,11 @@
 #include "system_config.h"
 #include <nxemu-loader/loader_settings_identifiers.h>
 #include <nxemu-os/os_settings_identifiers.h>
-#include <yuzu_common/settings_enums.h>
 
 namespace
 {
 static ConfigSetting systemSettings[] = {
-    ConfigSetting(ConfigSetting::ComboBox, "DockedMode", true, Settings::EnumMetadata<Settings::DockedMode>::Index(), NXOsSetting::DockedMode),
+    ConfigSetting(ConfigSetting::ComboBox, "DockedMode", true, SystemConfig::TranslationType::DockedMode, NXOsSetting::DockedMode),
     ConfigSetting(ConfigSetting::CheckBox, "CheckForUpdatedFirmware", true, NXLoaderSetting::CheckForUpdatedFirmware),
     ConfigSetting(ConfigSetting::CheckBox, "ConfirmBeforeStopping", true, NXUISetting::ConfirmBeforeStopping),
 };

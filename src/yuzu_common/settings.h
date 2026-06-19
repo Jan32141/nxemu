@@ -14,7 +14,6 @@
 
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/settings_common.h"
-#include "yuzu_common/settings_enums.h"
 #include "yuzu_common/settings_setting.h"
 
 namespace Settings {
@@ -22,22 +21,14 @@ namespace Settings {
 const char* TranslateCategory(Settings::Category category);
 
 #ifndef CANNOT_EXPLICITLY_INSTANTIATE
-// Instantiate the classes elsewhere (settings.cpp) to reduce compiler/linker work
 #define SETTING(TYPE, RANGED) extern template class Setting<TYPE, RANGED>
 #define SWITCHABLE(TYPE, RANGED) extern template class SwitchableSetting<TYPE, RANGED>
 
-SETTING(AudioEngine, false);
 SETTING(bool, false);
 SETTING(int, false);
 SETTING(s32, false);
 SETTING(std::string, false);
-SETTING(std::string, false);
 SETTING(u16, false);
-SWITCHABLE(AudioMode, true);
-SWITCHABLE(Language, true);
-SWITCHABLE(MemoryLayout, true);
-SWITCHABLE(Region, true);
-SWITCHABLE(TimeZone, true);
 SWITCHABLE(bool, false);
 SWITCHABLE(int, false);
 SWITCHABLE(int, true);
@@ -47,21 +38,10 @@ SWITCHABLE(u32, false);
 SWITCHABLE(u8, false);
 SWITCHABLE(u8, true);
 
-// Used in UISettings
-// TODO see if we can move this to uisettings.h
-SWITCHABLE(ConfirmStop, true);
-
 #undef SETTING
 #undef SWITCHABLE
 #endif
 
-/**
- * The InputSetting class allows for getting a reference to either the global or custom members.
- * This is required as we cannot easily modify the values of user-defined types within containers
- * using the SetValue() member function found in the Setting class. The primary purpose of this
- * class is to store an array of 10 player profiles for both the global and custom setting and
- * allows for easily accessing and modifying both settings.
- */
 template <typename Type>
 class InputSetting final {
 public:
@@ -82,9 +62,9 @@ public:
     }
 
 private:
-    bool use_global{true}; ///< The setting's global state
-    Type global{};         ///< The setting
-    Type custom{};         ///< The custom setting value
+    bool use_global{true};
+    Type global{};
+    Type custom{};
 };
 
 struct TouchFromButtonMap {
@@ -94,27 +74,6 @@ struct TouchFromButtonMap {
 
 struct Values {
     Linkage linkage{};
-
-    // Core
-    SwitchableSetting<bool> use_multi_core{linkage, true, "use_multi_core", Category::Core};
-    SwitchableSetting<MemoryLayout, true> memory_layout_mode{linkage,
-                                                             MemoryLayout::Memory_4Gb,
-                                                             MemoryLayout::Memory_4Gb,
-                                                             MemoryLayout::Memory_8Gb,
-                                                             "memory_layout_mode",
-                                                             Category::Core};
-    SwitchableSetting<bool> use_speed_limit{
-        linkage, true, "use_speed_limit", Category::Core, Specialization::Paired, false, true};
-    SwitchableSetting<u16, true> speed_limit{linkage,
-                                             100,
-                                             0,
-                                             9999,
-                                             "speed_limit",
-                                             Category::Core,
-                                             Specialization::Countable | Specialization::Percentage,
-                                             true,
-                                             true,
-                                             &use_speed_limit};
 
     // Data Storage
     Setting<bool> use_virtual_sd{linkage, true, "use_virtual_sd", Category::DataStorage};
@@ -172,9 +131,6 @@ extern Values values;
 
 float Volume();
 
-std::string GetTimeZoneString(TimeZone time_zone);
-
-// Restore the global state of all applicable settings in the Values struct
 void RestoreGlobalState(bool is_powered_on);
 
 bool IsConfiguringGlobal();
