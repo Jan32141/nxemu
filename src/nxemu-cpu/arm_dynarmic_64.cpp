@@ -26,7 +26,7 @@ public:
         m_system(system),
         m_process(process),
         m_debugger_enabled{system.DebuggerEnabled()},
-        m_check_memory_access{m_debugger_enabled || !cpuSettings.cpuopt_ignore_memory_aborts.GetValue()}
+        m_check_memory_access{m_debugger_enabled || !cpuSettings.cpuopt_ignore_memory_aborts}
     {
     }
 
@@ -340,7 +340,7 @@ std::shared_ptr<Dynarmic::A64::Jit> ArmDynarmic64::MakeJit(IKernelProcess & proc
     else
     {
         // Unsafe optimizations
-        if (cpuSettings.cpu_accuracy.GetValue() == CpuAccuracy::Unsafe)
+        if (cpuSettings.cpu_accuracy == CpuAccuracy::Unsafe)
         {
             config.unsafe_optimizations = true;
             if (cpuSettings.cpuopt_unsafe_unfuse_fma)
@@ -366,7 +366,7 @@ std::shared_ptr<Dynarmic::A64::Jit> ArmDynarmic64::MakeJit(IKernelProcess & proc
         }
 
         // Curated optimizations
-        if (cpuSettings.cpu_accuracy.GetValue() == CpuAccuracy::Auto)
+        if (cpuSettings.cpu_accuracy == CpuAccuracy::Auto)
         {
             config.unsafe_optimizations = true;
             config.optimizations |= Dynarmic::OptimizationFlag::Unsafe_UnfuseFMA;
@@ -375,7 +375,7 @@ std::shared_ptr<Dynarmic::A64::Jit> ArmDynarmic64::MakeJit(IKernelProcess & proc
         }
 
         // Paranoia mode for debugging optimizations
-        if (cpuSettings.cpu_accuracy.GetValue() == CpuAccuracy::Paranoid)
+        if (cpuSettings.cpu_accuracy == CpuAccuracy::Paranoid)
         {
             config.unsafe_optimizations = false;
             config.optimizations = Dynarmic::no_optimizations;

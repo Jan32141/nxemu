@@ -4,33 +4,31 @@
 #include <nxemu-loader/loader_settings_identifiers.h>
 #include <common/json.h>
 #include <common/json_util.h>
+#include <cstring>
+#include <map>
 #include <nxemu-module-spec/base.h>
-#include <nxemu-module-spec/cpu.h>
 #include <yuzu_common/logging/log.h>
-#include <yuzu_common/settings_setting.h>
 #include <yuzu_common/yuzu_assert.h>
 
 extern IModuleSettings * g_settings;
 
-CpuSettings cpuSettings;
+CpuSettings cpuSettings{};
 
 namespace
 {
 enum class SettingType
 {
+    Boolean,
     CpuBackend,
     CpuAccuracy,
-    BooleanSwitchable,
-    BooleanSetting,
 };
 
 class CpuSetting
 {
 public:
-    CpuSetting(const char * id, const char * section, const char * key, Settings::SwitchableSetting<CpuBackend, true> * val);
-    CpuSetting(const char * id, const char * section, const char * key, Settings::SwitchableSetting<CpuAccuracy, true> * val);
-    CpuSetting(const char * id, const char * section, const char * key, Settings::SwitchableSetting<bool> * val);
-    CpuSetting(const char * id, const char * section, const char * key, Settings::Setting<bool> * val);
+    CpuSetting(const char * id, const char * section, const char * key, bool * val, bool defaultValue);
+    CpuSetting(const char * id, const char * section, const char * key, CpuBackend * val, CpuBackend defaultValue);
+    CpuSetting(const char * id, const char * section, const char * key, CpuAccuracy * val, CpuAccuracy defaultValue);
 
     const char * identifier;
     const char * json_section;
@@ -38,64 +36,83 @@ public:
     SettingType settingType;
     union
     {
-        Settings::SwitchableSetting<CpuBackend, true> * cpuBackend;
-        Settings::SwitchableSetting<CpuAccuracy, true> * cpuAccuracy;
-        Settings::SwitchableSetting<bool> * booleanSwitchable;
-        Settings::Setting<bool> * booleanSetting;
-    } setting;
+        bool boolValue;
+        CpuBackend cpuBackend;
+        CpuAccuracy cpuAccuracy;
+    } defaults;
+    union
+    {
+        bool * boolValue;
+        CpuBackend * cpuBackend;
+        CpuAccuracy * cpuAccuracy;
+    } value;
 };
 
 static CpuSetting settings[] = {
-    {NXCpuSetting::CpuBackend, "cpu", "cpu_backend", &cpuSettings.cpu_backend},
-    {NXCpuSetting::CpuAccuracy, "cpu", "cpu_accuracy", &cpuSettings.cpu_accuracy},
-    {NXCpuSetting::CpuDebugMode, "cpu", "cpu_debug_mode", &cpuSettings.cpu_debug_mode},
-    {NXCpuSetting::CpuoptPageTables, "cpu", "cpuopt_page_tables", &cpuSettings.cpuopt_page_tables},
-    {NXCpuSetting::CpuoptBlockLinking, "cpu", "cpuopt_block_linking", &cpuSettings.cpuopt_block_linking},
-    {NXCpuSetting::CpuoptReturnStackBuffer, "cpu", "cpuopt_return_stack_buffer", &cpuSettings.cpuopt_return_stack_buffer},
-    {NXCpuSetting::CpuoptFastDispatcher, "cpu", "cpuopt_fast_dispatcher", &cpuSettings.cpuopt_fast_dispatcher},
-    {NXCpuSetting::CpuoptContextElimination, "cpu", "cpuopt_context_elimination", &cpuSettings.cpuopt_context_elimination},
-    {NXCpuSetting::CpuoptConstProp, "cpu", "cpuopt_const_prop", &cpuSettings.cpuopt_const_prop},
-    {NXCpuSetting::CpuoptMiscIr, "cpu", "cpuopt_misc_ir", &cpuSettings.cpuopt_misc_ir},
-    {NXCpuSetting::CpuoptReduceMisalignChecks, "cpu", "cpuopt_reduce_misalign_checks", &cpuSettings.cpuopt_reduce_misalign_checks},
-    {NXCpuSetting::CpuoptFastmem, "cpu", "cpuopt_fastmem", &cpuSettings.cpuopt_fastmem},
-    {NXCpuSetting::CpuoptFastmemExclusives, "cpu", "cpuopt_fastmem_exclusives", &cpuSettings.cpuopt_fastmem_exclusives},
-    {NXCpuSetting::CpuoptRecompileExclusives, "cpu", "cpuopt_recompile_exclusives", &cpuSettings.cpuopt_recompile_exclusives},
-    {NXCpuSetting::CpuoptIgnoreMemoryAborts, "cpu", "cpuopt_ignore_memory_aborts", &cpuSettings.cpuopt_ignore_memory_aborts},
-    {NXCpuSetting::CpuoptUnsafeUnfuseFma, "cpu", "cpuopt_unsafe_unfuse_fma", &cpuSettings.cpuopt_unsafe_unfuse_fma},
-    {NXCpuSetting::CpuoptUnsafeReduceFpError, "cpu", "cpuopt_unsafe_reduce_fp_error", &cpuSettings.cpuopt_unsafe_reduce_fp_error},
-    {NXCpuSetting::CpuoptUnsafeIgnoreStandardFpcr, "cpu", "cpuopt_unsafe_ignore_standard_fpcr", &cpuSettings.cpuopt_unsafe_ignore_standard_fpcr},
-    {NXCpuSetting::CpuoptUnsafeInaccurateNan, "cpu", "cpuopt_unsafe_inaccurate_nan", &cpuSettings.cpuopt_unsafe_inaccurate_nan},
-    {NXCpuSetting::CpuoptUnsafeFastmemCheck, "cpu", "cpuopt_unsafe_fastmem_check", &cpuSettings.cpuopt_unsafe_fastmem_check},
-    {NXCpuSetting::CpuoptUnsafeIgnoreGlobalMonitor, "cpu", "cpuopt_unsafe_ignore_global_monitor", &cpuSettings.cpuopt_unsafe_ignore_global_monitor},
+#ifdef HAS_NCE
+    {NXCpuSetting::CpuBackend, "cpu", "cpu_backend", &cpuSettings.cpu_backend, CpuBackend::Nce},
+#else
+    {NXCpuSetting::CpuBackend, "cpu", "cpu_backend", &cpuSettings.cpu_backend, CpuBackend::Dynarmic},
+#endif
+    {NXCpuSetting::CpuAccuracy, "cpu", "cpu_accuracy", &cpuSettings.cpu_accuracy, CpuAccuracy::Auto},
+    {NXCpuSetting::CpuDebugMode, "cpu", "cpu_debug_mode", &cpuSettings.cpu_debug_mode, false},
+    {NXCpuSetting::CpuoptPageTables, "cpu", "cpuopt_page_tables", &cpuSettings.cpuopt_page_tables, true},
+    {NXCpuSetting::CpuoptBlockLinking, "cpu", "cpuopt_block_linking", &cpuSettings.cpuopt_block_linking, true},
+    {NXCpuSetting::CpuoptReturnStackBuffer, "cpu", "cpuopt_return_stack_buffer", &cpuSettings.cpuopt_return_stack_buffer, true},
+    {NXCpuSetting::CpuoptFastDispatcher, "cpu", "cpuopt_fast_dispatcher", &cpuSettings.cpuopt_fast_dispatcher, true},
+    {NXCpuSetting::CpuoptContextElimination, "cpu", "cpuopt_context_elimination", &cpuSettings.cpuopt_context_elimination, true},
+    {NXCpuSetting::CpuoptConstProp, "cpu", "cpuopt_const_prop", &cpuSettings.cpuopt_const_prop, true},
+    {NXCpuSetting::CpuoptMiscIr, "cpu", "cpuopt_misc_ir", &cpuSettings.cpuopt_misc_ir, true},
+    {NXCpuSetting::CpuoptReduceMisalignChecks, "cpu", "cpuopt_reduce_misalign_checks", &cpuSettings.cpuopt_reduce_misalign_checks, true},
+    {NXCpuSetting::CpuoptFastmem, "cpu", "cpuopt_fastmem", &cpuSettings.cpuopt_fastmem, true},
+    {NXCpuSetting::CpuoptFastmemExclusives, "cpu", "cpuopt_fastmem_exclusives", &cpuSettings.cpuopt_fastmem_exclusives, true},
+    {NXCpuSetting::CpuoptRecompileExclusives, "cpu", "cpuopt_recompile_exclusives", &cpuSettings.cpuopt_recompile_exclusives, true},
+    {NXCpuSetting::CpuoptIgnoreMemoryAborts, "cpu", "cpuopt_ignore_memory_aborts", &cpuSettings.cpuopt_ignore_memory_aborts, true},
+    {NXCpuSetting::CpuoptUnsafeUnfuseFma, "cpu", "cpuopt_unsafe_unfuse_fma", &cpuSettings.cpuopt_unsafe_unfuse_fma, true},
+    {NXCpuSetting::CpuoptUnsafeReduceFpError, "cpu", "cpuopt_unsafe_reduce_fp_error", &cpuSettings.cpuopt_unsafe_reduce_fp_error, true},
+    {NXCpuSetting::CpuoptUnsafeIgnoreStandardFpcr, "cpu", "cpuopt_unsafe_ignore_standard_fpcr", &cpuSettings.cpuopt_unsafe_ignore_standard_fpcr, true},
+    {NXCpuSetting::CpuoptUnsafeInaccurateNan, "cpu", "cpuopt_unsafe_inaccurate_nan", &cpuSettings.cpuopt_unsafe_inaccurate_nan, true},
+    {NXCpuSetting::CpuoptUnsafeFastmemCheck, "cpu", "cpuopt_unsafe_fastmem_check", &cpuSettings.cpuopt_unsafe_fastmem_check, true},
+    {NXCpuSetting::CpuoptUnsafeIgnoreGlobalMonitor, "cpu", "cpuopt_unsafe_ignore_global_monitor", &cpuSettings.cpuopt_unsafe_ignore_global_monitor, true},
 };
 
-CpuSetting::CpuSetting(const char * id, const char * section, const char * key, Settings::SwitchableSetting<CpuBackend, true> * val) :
-    identifier(id), json_section(section), json_key(key), settingType(SettingType::CpuBackend), setting{.cpuBackend = val}
+CpuSetting::CpuSetting(const char * id, const char * section, const char * key, bool * val, bool defaultValue) :
+    identifier(id),
+    json_section(section),
+    json_key(key),
+    settingType(SettingType::Boolean)
 {
+    defaults.boolValue = defaultValue;
+    value.boolValue = val;
 }
 
-CpuSetting::CpuSetting(const char * id, const char * section, const char * key, Settings::SwitchableSetting<CpuAccuracy, true> * val) :
-    identifier(id), json_section(section), json_key(key), settingType(SettingType::CpuAccuracy), setting{.cpuAccuracy = val}
+CpuSetting::CpuSetting(const char * id, const char * section, const char * key, CpuBackend * val, CpuBackend defaultValue) :
+    identifier(id),
+    json_section(section),
+    json_key(key),
+    settingType(SettingType::CpuBackend)
 {
+    defaults.cpuBackend = defaultValue;
+    value.cpuBackend = val;
 }
 
-CpuSetting::CpuSetting(const char * id, const char * section, const char * key, Settings::SwitchableSetting<bool> * val) :
-    identifier(id), json_section(section), json_key(key), settingType(SettingType::BooleanSwitchable), setting{.booleanSwitchable = val}
+CpuSetting::CpuSetting(const char * id, const char * section, const char * key, CpuAccuracy * val, CpuAccuracy defaultValue) :
+    identifier(id),
+    json_section(section),
+    json_key(key),
+    settingType(SettingType::CpuAccuracy)
 {
-}
-
-CpuSetting::CpuSetting(const char * id, const char * section, const char * key, Settings::Setting<bool> * val) :
-    identifier(id), json_section(section), json_key(key), settingType(SettingType::BooleanSetting), setting{.booleanSetting = val}
-{
+    defaults.cpuAccuracy = defaultValue;
+    value.cpuAccuracy = val;
 }
 
 } // namespace
 
 bool IsFastmemEnabled()
 {
-    if (g_settings->GetBool(NXCpuSetting::CpuDebugMode))
+    if (cpuSettings.cpu_debug_mode)
     {
-        return g_settings->GetBool(NXCpuSetting::CpuoptFastmem);
+        return cpuSettings.cpuopt_fastmem;
     }
     return true;
 }
@@ -136,17 +153,14 @@ void CpuSettingChanged(const char * setting, void * /*userData*/)
         }
         switch (cpuSetting.settingType)
         {
+        case SettingType::Boolean:
+            *cpuSetting.value.boolValue = g_settings->GetBool(setting);
+            break;
         case SettingType::CpuBackend:
-            cpuSetting.setting.cpuBackend->SetValue(static_cast<CpuBackend>(g_settings->GetInt(setting)));
+            *cpuSetting.value.cpuBackend = static_cast<CpuBackend>(g_settings->GetInt(setting));
             break;
         case SettingType::CpuAccuracy:
-            cpuSetting.setting.cpuAccuracy->SetValue(static_cast<CpuAccuracy>(g_settings->GetInt(setting)));
-            break;
-        case SettingType::BooleanSwitchable:
-            cpuSetting.setting.booleanSwitchable->SetValue(g_settings->GetBool(setting));
-            break;
-        case SettingType::BooleanSetting:
-            cpuSetting.setting.booleanSetting->SetValue(g_settings->GetBool(setting));
+            *cpuSetting.value.cpuAccuracy = static_cast<CpuAccuracy>(g_settings->GetInt(setting));
             break;
         default:
             UNIMPLEMENTED();
@@ -172,17 +186,14 @@ void SetupCpuSetting(void)
     {
         switch (cpuSetting.settingType)
         {
+        case SettingType::Boolean:
+            *cpuSetting.value.boolValue = cpuSetting.defaults.boolValue;
+            break;
         case SettingType::CpuBackend:
-            cpuSetting.setting.cpuBackend->SetValue(cpuSetting.setting.cpuBackend->GetDefault());
+            *cpuSetting.value.cpuBackend = cpuSetting.defaults.cpuBackend;
             break;
         case SettingType::CpuAccuracy:
-            cpuSetting.setting.cpuAccuracy->SetValue(cpuSetting.setting.cpuAccuracy->GetDefault());
-            break;
-        case SettingType::BooleanSwitchable:
-            cpuSetting.setting.booleanSwitchable->SetValue(cpuSetting.setting.booleanSwitchable->GetDefault());
-            break;
-        case SettingType::BooleanSetting:
-            cpuSetting.setting.booleanSetting->SetValue(cpuSetting.setting.booleanSetting->GetDefault());
+            *cpuSetting.value.cpuAccuracy = cpuSetting.defaults.cpuAccuracy;
             break;
         default:
             UNIMPLEMENTED();
@@ -205,28 +216,22 @@ void SetupCpuSetting(void)
             JsonValue value = section[cpuSetting.json_key];
             switch (cpuSetting.settingType)
             {
+            case SettingType::Boolean:
+                if (value.isBool())
+                {
+                    *cpuSetting.value.boolValue = value.asBool();
+                }
+                break;
             case SettingType::CpuBackend:
                 if (value.isString())
                 {
-                    cpuSetting.setting.cpuBackend->SetValue(CpuBackendFromString(value.asString()));
+                    *cpuSetting.value.cpuBackend = CpuBackendFromString(value.asString());
                 }
                 break;
             case SettingType::CpuAccuracy:
                 if (value.isString())
                 {
-                    cpuSetting.setting.cpuAccuracy->SetValue(CpuAccuracyFromString(value.asString()));
-                }
-                break;
-            case SettingType::BooleanSwitchable:
-                if (value.isBool())
-                {
-                    cpuSetting.setting.booleanSwitchable->SetValue(value.asBool());
-                }
-                break;
-            case SettingType::BooleanSetting:
-                if (value.isBool())
-                {
-                    cpuSetting.setting.booleanSetting->SetValue(value.asBool());
+                    *cpuSetting.value.cpuAccuracy = CpuAccuracyFromString(value.asString());
                 }
                 break;
             default:
@@ -239,21 +244,17 @@ void SetupCpuSetting(void)
     {
         switch (cpuSetting.settingType)
         {
+        case SettingType::Boolean:
+            g_settings->SetDefaultBool(cpuSetting.identifier, cpuSetting.defaults.boolValue);
+            g_settings->SetBool(cpuSetting.identifier, *cpuSetting.value.boolValue);
+            break;
         case SettingType::CpuBackend:
-            g_settings->SetDefaultInt(cpuSetting.identifier, static_cast<int32_t>(cpuSetting.setting.cpuBackend->GetDefault()));
-            g_settings->SetInt(cpuSetting.identifier, static_cast<int32_t>(cpuSetting.setting.cpuBackend->GetValue()));
+            g_settings->SetDefaultInt(cpuSetting.identifier, static_cast<int32_t>(cpuSetting.defaults.cpuBackend));
+            g_settings->SetInt(cpuSetting.identifier, static_cast<int32_t>(*cpuSetting.value.cpuBackend));
             break;
         case SettingType::CpuAccuracy:
-            g_settings->SetDefaultInt(cpuSetting.identifier, static_cast<int32_t>(cpuSetting.setting.cpuAccuracy->GetDefault()));
-            g_settings->SetInt(cpuSetting.identifier, static_cast<int32_t>(cpuSetting.setting.cpuAccuracy->GetValue()));
-            break;
-        case SettingType::BooleanSwitchable:
-            g_settings->SetDefaultBool(cpuSetting.identifier, cpuSetting.setting.booleanSwitchable->GetDefault());
-            g_settings->SetBool(cpuSetting.identifier, cpuSetting.setting.booleanSwitchable->GetValue());
-            break;
-        case SettingType::BooleanSetting:
-            g_settings->SetDefaultBool(cpuSetting.identifier, cpuSetting.setting.booleanSetting->GetDefault());
-            g_settings->SetBool(cpuSetting.identifier, cpuSetting.setting.booleanSetting->GetValue());
+            g_settings->SetDefaultInt(cpuSetting.identifier, static_cast<int32_t>(cpuSetting.defaults.cpuAccuracy));
+            g_settings->SetInt(cpuSetting.identifier, static_cast<int32_t>(*cpuSetting.value.cpuAccuracy));
             break;
         default:
             UNIMPLEMENTED();
@@ -278,30 +279,24 @@ void SaveCpuSettings(void)
     {
         switch (cpuSetting.settingType)
         {
+        case SettingType::Boolean:
+            if (*cpuSetting.value.boolValue != cpuSetting.defaults.boolValue)
+            {
+                sections[cpuSetting.json_section][cpuSetting.json_key] = *cpuSetting.value.boolValue;
+            }
+            break;
         case SettingType::CpuBackend:
-            if (cpuSetting.setting.cpuBackend->GetValue() != cpuSetting.setting.cpuBackend->GetDefault())
+            if (*cpuSetting.value.cpuBackend != cpuSetting.defaults.cpuBackend)
             {
                 sections[cpuSetting.json_section][cpuSetting.json_key] =
-                    CpuBackendToString(cpuSetting.setting.cpuBackend->GetValue());
+                    CpuBackendToString(*cpuSetting.value.cpuBackend);
             }
             break;
         case SettingType::CpuAccuracy:
-            if (cpuSetting.setting.cpuAccuracy->GetValue() != cpuSetting.setting.cpuAccuracy->GetDefault())
+            if (*cpuSetting.value.cpuAccuracy != cpuSetting.defaults.cpuAccuracy)
             {
                 sections[cpuSetting.json_section][cpuSetting.json_key] =
-                    CpuAccuracyToString(cpuSetting.setting.cpuAccuracy->GetValue());
-            }
-            break;
-        case SettingType::BooleanSwitchable:
-            if (cpuSetting.setting.booleanSwitchable->GetValue() != cpuSetting.setting.booleanSwitchable->GetDefault())
-            {
-                sections[cpuSetting.json_section][cpuSetting.json_key] = cpuSetting.setting.booleanSwitchable->GetValue();
-            }
-            break;
-        case SettingType::BooleanSetting:
-            if (cpuSetting.setting.booleanSetting->GetValue() != cpuSetting.setting.booleanSetting->GetDefault())
-            {
-                sections[cpuSetting.json_section][cpuSetting.json_key] = cpuSetting.setting.booleanSetting->GetValue();
+                    CpuAccuracyToString(*cpuSetting.value.cpuAccuracy);
             }
             break;
         default:
@@ -310,21 +305,12 @@ void SaveCpuSettings(void)
     }
 
     JsonValue root;
-    for (const auto & [section, values] : sections)
+    for (SectionMap::const_iterator it = sections.begin(); it != sections.end(); ++it)
     {
-        if (values.size() > 0)
+        if (it->second.size() > 0)
         {
-            root[section] = values;
+            root[it->first] = it->second;
         }
     }
     g_settings->SetSectionSettings("nxemu-cpu", root.isNull() ? "" : JsonStyledWriter().write(root));
 }
-
-namespace Settings {
-#ifndef CANNOT_EXPLICITLY_INSTANTIATE
-template class SwitchableSetting<CpuBackend, true>;
-template class SwitchableSetting<CpuAccuracy, true>;
-template class SwitchableSetting<bool, false>;
-template class Setting<bool, false>;
-#endif
-} // namespace Settings
